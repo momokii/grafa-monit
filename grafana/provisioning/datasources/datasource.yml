@@ -3,6 +3,9 @@ apiVersion: 1
 deleteDatasources:
   - name: Prometheus
     orgId: 1
+  # if need using redis as datasource, uncomment this section and make sure redis-datasource plugin is installed for Grafana and configure redis server connection properly
+  # - name: Redis
+  #   orgId: 1
 
 datasources:
   - name: Prometheus
@@ -13,3 +16,42 @@ datasources:
     basicAuth: false
     isDefault: true
     editable: true
+
+  # Loki data source configuration
+  - name: Loki
+    type: loki
+    access: proxy
+    orgId: 1
+    url: http://loki:3100
+    basicAuth: false
+    isDefault: false
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+
+  # If you need to use Redis monitoring redis data source, uncomment this section below.
+  # Ensure the redis-datasource plugin is installed in Grafana and that
+  # the Redis server address/url is correct for your environment.
+  # - name: Redis                  # Display name in Grafana UI
+  #   type: redis-datasource       # Plugin type; must match installed plugin ID
+  #   access: proxy                # Use Grafana backend to proxy requests
+  #   orgId: 1                     # Organization ID (usually 1 for single-tenant)
+  #   isDefault: false             # Do not make Redis the default data source
+  #   version: 1                   # Version of this provisioning entry
+  #   url: redis://redis:6379      # Connection URL: protocol://host:port
+    
+    # 'redis' should resolve in Docker network
+    # jsonData:
+    #   client: standalone         # Use standalone Redis client mode
+    #   poolSize: 5                # Number of connections in the pool
+    #   timeout: 10                # Timeout in seconds for commands
+    #   pingInterval: 0            # Interval for automatic pings (0 to disable)
+    #   pipelineWindow: 0          # Pipeline window in ms (0 to disable batching)
+    # secureJsonData:
+    #   password: ""               # Redis password if any; empty or omit if none
+    # editable: true               # Allow editing this data source in UI

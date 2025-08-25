@@ -1,0 +1,280 @@
+version: "3.7"
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: node-exporter
+    restart: unless-stopped
+    # network_mode: "host"           # for we can direct access metric from host, but not works on windows
+    ports:
+    - "9100:9100" 
+    pid: "host"                    # so can see all host processes
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    volumes:
+    - type: bind
+      source: /
+      target: /rootfs
+      read_only: true
+      bind:
+        propagation: rslave  # use rslave to allow the container to see changes in the host filesystem
+
+    - type: bind
+      source: /proc
+      target: /host/proc
+      read_only: true
+
+    - type: bind
+      source: /sys
+      target: /host/sys
+      read_only: true
+
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($|/)"'
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    user: "nobody:nobody"  # run as nobody user
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'  # save data for max 15 days
+      # - '--storage.tsdb.retention.size=10GB' # size threshold for data retention if needed it
+    volumes:
+      - ../prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ../data/prometheus:/prometheus
+      - ../alerts.yml:/etc/prometheus/alerts.yml:ro # alerts configuration
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+    - GF_SECURITY_ADMIN_PASSWORD=admin # you can change this or using ENV variable, but on default will using admin/admin 
+    - GF_SECURITY_ADMIN_USER=admin
+    - GF_USERS_ALLOW_SIGN_UP=false
+    - GF_LOG_MODE=console file  # Log to console and file
+    - GF_LOG_LEVEL=info         # Log level
+    - GF_PATHS_LOGS=/var/log/grafana  # Path log at container
+    # add and download REDIS PLUGINS DATASOURCE if needed it 
+    - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+    - ../data/grafana:/var/lib/grafana
+    - ../grafana/provisioning:/etc/grafana/provisioning
+    - ../logs/grafana:/var/log/grafana # parsing grafana logs
+    # if using redis on docker (because the connection will directly with redis not with prometheus), make sure to have same network with redis container (UNCOMMENT the networks below if needed it)
+    # networks:
+    #   - default
+    #   - monitoring-db-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    user: "65534:65534" # using user nobody:nobody
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - ../alertmanager.yml:/etc/alertmanager/config.yml
+      - ../logs/alertmanager:/alertmanager  # save log on folder host
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+      - '--log.level=debug'
+
+  cadvisor:
+    # image: google/cadvisor:v0.33.0
+    image: zcube/cadvisor:v0.45.0 # using this if google version not works
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+        bind:
+          propagation: rslave  # use rslave to allow the container to see changes in the host filesystem
+
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+        bind:
+          propagation: rslave  
+
+      - type: bind
+        source: /var/run
+        target: /var/run
+        read_only: true
+
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+
+      - type: bind
+        source: /dev/disk
+        target: /dev/disk
+        read_only: true
+    # networks:
+    #   - default
+    #   - monitoring-db-network
+  
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ../loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - ../data/loki:/loki
+    networks:
+      - default
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: promtail
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "promtail", "-version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - ../promtail/promtail-config.yaml:/etc/promtail/config.yml
+      - /var/log:/var/log:ro  # System logs
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # Docker container logs
+      - ../logs:/host/logs:ro  # Your application logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket for container discovery
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - default
+    depends_on:
+      - loki
+
+  # testing alloy to replace promtail, alloy job here will be basically same for promtail, so you can choose which one will be user. For some information that promtail will be fully deprecated (and not supported at all) around after q1 2026
+  # if using promtail before, you can use "promtail-to-alloy-config.sh" bash script for convert promtail config to alloy config.
+  # alloy:
+  #   image: grafana/alloy:v1.9.1
+  #   container_name: alloy
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "alloy", "-version"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
+  #   volumes:
+  #     - ../alloy/alloy-config.alloy:/etc/alloy/config.alloy
+  #     - alloy_data:/var/lib/alloy/data  # Persistent storage for Alloy data
+  #     - /var/log:/var/log:ro  # System logs
+  #     - /:/rootfs:ro  # Root filesystem for logs
+  #     - /run:/run:ro  # Run directory for logs
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker/:/var/lib/docker/:ro
+  #     - /run/udev/data:/run/udev/data:ro
+  #   command:
+  #     - run 
+  #     - --server.http.listen-address=0.0.0.0:12345
+  #     - --storage.path=/var/lib/alloy/data
+  #     - /etc/alloy/config.alloy
+  #   ports:
+  #     - "12345:12345"  # Expose Alloy's HTTP server
+  #   networks:
+  #     - default
+  #   depends_on:
+  #     - loki
+
+  # Postgres Exporter, enable this if need to add monitoring to postgresql database and in this configuration, the postgresql database run on docker, so make sure the compose docker postgresql run on same Networks setup
+  # postgres_exporter:
+  #   image: quay.io/prometheuscommunity/postgres-exporter
+  #   container_name: postgres_exporter
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9187:9187"
+  #   environment:
+  #     DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASS}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:9187/metrics"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
+  #   networks:
+  #     - default
+  #     - monitoring-db-network
+
+  # nginx prometheus exporter, enable this if need to add monitoring to nginx server
+  # https://github.com/nginx/nginx-prometheus-exporter
+  # make sure nginx server has enabled the stub status module and the endpoint is available at /nginx_status
+  # https://docs.nginx.com/nginx/admin-guide/web-server/monitoring/web-server-metrics/
+  # nginx_exporter:
+  #   image: nginx/nginx-prometheus-exporter:1.4.2
+  #   container_name: nginx_exporter
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9113:9113"
+  #   command:
+  #     - -nginx.scrape-uri=http://nginx/nginx_status
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:9113/metrics"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
+  #   networks:
+  #     - default
+  #     - monitoring-db-network
+
+# UNCOMENT the networks below if you need to use postgres exporter or nginx exporter, so they can access the postgres db or nginx server
+# networks:
+#   default:
+#   # make sure if need to use postgres exporter to make sure if postgres using docker to using the same network below, so postgres_exporter can access the postgres db
+#   monitoring-db-network:
+#     external: true
