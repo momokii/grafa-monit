@@ -33,30 +33,15 @@ print_step() {
 
 # Function to detect OS and set compose directory
 detect_os_and_set_compose_dir() {
-    case "$(uname -s)" in
-        Linux*)
-            OS="linux"
-            if [ -d "compose-linux" ] && [ -f "compose-linux/compose.yaml" ]; then
-                COMPOSE_DIR="compose-linux"
-            else
-                print_error "Linux compose directory 'compose-linux' or 'compose-linux/compose.yaml' not found!"
-                exit 1
-            fi
-            ;;
-        MINGW*|CYGWIN*|MSYS*)
-            OS="windows"
-            if [ -d "compose-windows" ] && [ -f "compose-windows/compose.yaml" ]; then
-                COMPOSE_DIR="compose-windows"
-            else
-                print_error "Windows compose directory 'compose-windows' or 'compose-windows/compose.yaml' not found!"
-                exit 1
-            fi
-            ;;
-        *)
-            print_error "Unsupported operating system: $(uname -s)"
-            exit 1
-            ;;
-    esac
+    # Simplified since we now use a single compose.yaml file
+    if [ -f "compose.yaml" ]; then
+        COMPOSE_DIR="."
+        COMPOSE_FILE="compose.yaml"
+        print_info "Using unified compose.yaml configuration"
+    else
+        print_error "compose.yaml not found!"
+        exit 1
+    fi
 }
 
 # Function to check if Docker is running
@@ -89,6 +74,7 @@ create_directories() {
         "data/prometheus"
         "data/grafana" 
         "data/loki"
+        "data/alloy_data"
         "logs/grafana"
         "logs/alertmanager"
         "logs/nginx"
@@ -96,7 +82,7 @@ create_directories() {
         "logs/app"
         "backups"
         "loki"
-        "promtail"
+        "alloy"
         "grafana/provisioning/datasources"
         "grafana/provisioning/dashboards"
         "grafana/provisioning/notifiers"
@@ -157,7 +143,7 @@ check_config_files() {
         "alerts.yml:Alertmanager rules"
         "alertmanager.yml:Alertmanager configuration"
         "loki/loki-config.yaml:Loki configuration"
-        "promtail/promtail-config.yaml:Promtail configuration"
+        "alloy/alloy-config.alloy:Alloy configuration"
         "grafana/provisioning/datasources/datasource.yml:Grafana datasource configuration"
     )
     
@@ -207,11 +193,11 @@ validate_configs() {
         print_warning "Loki configuration file not found: loki/loki-config.yaml"
     fi
     
-    # Check if Promtail config file exists and is readable
-    if [ -f "promtail/promtail-config.yaml" ]; then
-        print_info "Promtail configuration file found"
+    # Check if Alloy config file exists and is readable
+    if [ -f "alloy/alloy-config.alloy" ]; then
+        print_info "Alloy configuration file found"
     else
-        print_warning "Promtail configuration file not found: promtail/promtail-config.yaml"
+        print_warning "Alloy configuration file not found: alloy/alloy-config.alloy"
     fi
 }
 
@@ -237,58 +223,46 @@ create_networks() {
 pull_images() {
     print_step "Pulling latest Docker images..."
     
-    cd "$COMPOSE_DIR"
-    
-    if docker compose pull; then
+    if docker compose -f "$COMPOSE_FILE" pull; then
         print_success "All images pulled successfully"
     else
         print_error "Failed to pull some images"
-        cd ..
         exit 1
     fi
-    
-    cd ..
 }
 
 # Function to start services
 start_services() {
     print_step "Starting monitoring services..."
     
-    cd "$COMPOSE_DIR"
-    
-    # Start services with dependency order
+    # Start services with simplified dependency order
     print_info "Starting core monitoring services..."
-    if docker compose up -d prometheus alertmanager; then
+    if docker compose -f "$COMPOSE_FILE" up -d prometheus alertmanager; then
         print_success "Core monitoring services started"
     else
         print_error "Failed to start core monitoring services"
-        cd ..
         exit 1
     fi
     
     sleep 5
     
-    print_info "Starting log aggregation services..."
-    if docker compose up -d loki promtail; then
-        print_success "Log aggregation services started"
+    print_info "Starting log aggregation and metrics collection services..."
+    if docker compose -f "$COMPOSE_FILE" up -d loki alloy; then
+        print_success "Log aggregation and metrics collection services started"
     else
-        print_error "Failed to start log aggregation services"
-        cd ..
+        print_error "Failed to start log aggregation and metrics collection services"
         exit 1
     fi
     
     sleep 5
     
-    print_info "Starting visualization and metric collection services..."
-    if docker compose up -d grafana node-exporter cadvisor; then
+    print_info "Starting visualization services..."
+    if docker compose -f "$COMPOSE_FILE" up -d grafana; then
         print_success "All monitoring services started"
     else
-        print_error "Failed to start some services"
-        cd ..
+        print_error "Failed to start visualization services"
         exit 1
     fi
-    
-    cd ..
 }
 
 # Function to wait for services to be ready
@@ -299,10 +273,8 @@ wait_for_services() {
         "prometheus:9090:/-/healthy"
         "grafana:3000:/api/health"
         "alertmanager:9093:/-/healthy"
-        "node-exporter:9100:/metrics"
-        "cadvisor:8080:/healthz"
         "loki:3100:/ready"
-        "promtail:9080:/metrics"
+        "alloy:12345:/metrics"
     )
     
     local max_wait=180 # 3 minutes
@@ -336,7 +308,7 @@ wait_for_services() {
 show_status() {
     print_step "Checking service status..."
     echo
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|cadvisor|node-exporter|loki|promtail|NAMES)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|loki|alloy|NAMES)"
     echo
 }
 
@@ -349,22 +321,18 @@ show_access_info() {
     print_info "  🔍 Prometheus:    http://localhost:9090"
     print_info "  🚨 Alertmanager:  http://localhost:9093"
     echo
-    print_info "Monitoring Services:"
-    print_info "  📈 Node Exporter: http://localhost:9100/metrics"
-    print_info "  🐳 cAdvisor:      http://localhost:8080"
-    echo
-    print_info "Log Services:"
+    print_info "Unified Monitoring Services:"
+    print_info "  � Alloy:         http://localhost:12345/metrics (logs + system metrics + container metrics)"
     print_info "  📝 Loki:          http://localhost:3100"
-    print_info "  📋 Promtail:      http://localhost:9080/metrics"
     echo
     print_info "Optional Services (commented in compose):"
     print_info "  🐘 PostgreSQL Exporter: http://localhost:9187/metrics (if enabled)"
     print_info "  🌐 Nginx Exporter:      http://localhost:9113/metrics (if enabled)"
     echo
     print_success "Setup completed successfully!"
-    print_info "You can now start monitoring your infrastructure."
+    print_info "You can now start monitoring your infrastructure with unified Alloy-based collection."
     echo
-    print_warning "Note: If you need PostgreSQL or Nginx monitoring, uncomment the relevant services in $COMPOSE_DIR/compose.yaml"
+    print_warning "Note: Alloy now provides unified metrics and log collection (replaces node-exporter, cadvisor, and promtail)"
 }
 
 # Function to show usage
@@ -426,13 +394,13 @@ main() {
     
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}    Grafana Host Monitoring Setup Script${NC}"
+    echo -e "${CYAN}    Unified Alloy-Based Observability Stack${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
     
     # Detect OS and set compose directory
     detect_os_and_set_compose_dir
-    print_info "Operating System: $OS"
-    print_info "Using compose configuration: ./$COMPOSE_DIR/"
+    print_info "Using unified compose configuration: ./compose.yaml"
     echo
     
     # Check Docker

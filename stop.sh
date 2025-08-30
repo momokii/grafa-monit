@@ -27,30 +27,14 @@ print_error() {
 
 # Function to detect OS and set compose directory
 detect_os_and_set_compose_dir() {
-    case "$(uname -s)" in
-        Linux*)
-            OS="linux"
-            if [ -d "compose-linux" ] && [ -f "compose-linux/compose.yaml" ]; then
-                COMPOSE_DIR="compose-linux"
-            else
-                print_error "Linux compose directory 'compose-linux' or 'compose-linux/compose.yaml' not found!"
-                exit 1
-            fi
-            ;;
-        MINGW*|CYGWIN*|MSYS*)
-            OS="windows"
-            if [ -d "compose-windows" ] && [ -f "compose-windows/compose.yaml" ]; then
-                COMPOSE_DIR="compose-windows"
-            else
-                print_error "Windows compose directory 'compose-windows' or 'compose-windows/compose.yaml' not found!"
-                exit 1
-            fi
-            ;;
-        *)
-            print_error "Unsupported operating system: $(uname -s)"
-            exit 1
-            ;;
-    esac
+    # Simplified since we now use a single compose.yaml file
+    if [ -f "compose.yaml" ]; then
+        COMPOSE_DIR="."
+        print_info "Using unified compose.yaml configuration"
+    else
+        print_error "compose.yaml not found!"
+        exit 1
+    fi
 }
 
 # Function to stop services gracefully
@@ -60,7 +44,7 @@ stop_services() {
     cd "$COMPOSE_DIR"
     
     # Stop services in reverse dependency order
-    local services=("promtail" "loki" "grafana" "cadvisor" "node-exporter" "alertmanager" "prometheus")
+    local services=("alloy" "loki" "grafana" "alertmanager" "prometheus")
     
     for service in "${services[@]}"; do
         if docker compose ps -q "$service" &>/dev/null && [ -n "$(docker compose ps -q "$service")" ]; then
@@ -127,12 +111,10 @@ remove_images() {
     
     local images=(
         "prom/prometheus:v2.47.0"
-        "grafana/grafana:10.2.0"
+        "grafana/grafana:12.1.1"
         "prom/alertmanager:v0.28.1"
-        "prom/node-exporter:v1.6.1"
-        "zcube/cadvisor:v0.45.0"
         "grafana/loki:3.3.2"
-        "grafana/promtail:3.3.2"
+        "grafana/alloy:v1.9.1"
     )
     
     for image in "${images[@]}"; do
@@ -177,7 +159,7 @@ cleanup_data() {
 show_status() {
     print_info "Current container status:"
     echo
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|cadvisor|node-exporter|loki|promtail|NAMES)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|loki|alloy|NAMES)"
     echo
 }
 
@@ -275,7 +257,7 @@ main() {
     
     # Detect OS and set compose directory
     detect_os_and_set_compose_dir
-    print_info "Using compose configuration: ./$COMPOSE_DIR/"
+    print_info "Using compose configuration: ./compose.yaml"
     
     # Show current status
     show_status

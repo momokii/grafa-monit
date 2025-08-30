@@ -1,30 +1,6 @@
 version: "3.7"
 
 services:
-  node-exporter:
-    image: prom/node-exporter:v1.6.1
-    container_name: node-exporter
-    restart: unless-stopped
-    # network_mode: "host"           # for we can direct access metric from host, but not works on windows
-    ports:
-    - "9100:9100" 
-    pid: "host"                    # so can see all host processes
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    volumes:
-    # some times using setup below not works on windows, so you can try to use network_mode: "host" and remove the volumes below
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($|/)"'
-
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: prometheus
@@ -43,10 +19,12 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'  # save data for max 15 days
       # - '--storage.tsdb.retention.size=10GB' # size threshold for data retention if needed it
+      # add new setup below for connect to loki/alloy
+      - --web.enable-remote-write-receiver
     volumes:
-      - ../prometheus.yaml:/etc/prometheus/prometheus.yml:ro
-      - ../data/prometheus:/prometheus
-      - ../alerts.yml:/etc/prometheus/alerts.yml:ro # alerts configuration
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./data/prometheus:/prometheus
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro # alerts configuration
 
   grafana:
     image: grafana/grafana:12.1.1
@@ -70,12 +48,12 @@ services:
     # add and download REDIS PLUGINS DATASOURCE if needed it 
     - GF_INSTALL_PLUGINS=redis-datasource
     volumes:
-    - ../data/grafana:/var/lib/grafana
-    - ../grafana/provisioning:/etc/grafana/provisioning
-    - ../logs/grafana:/var/log/grafana # parsing grafana logs
+    - ./data/grafana:/var/lib/grafana
+    - ./grafana/provisioning:/etc/grafana/provisioning
+    - ./logs/grafana:/var/log/grafana # parsing grafana logs
     # if using redis on docker (because the connection will directly with redis not with prometheus), make sure to have same network with redis container (UNCOMMENT the networks below if needed it)
-    networks:
-      - default
+    # networks:
+    #   - default
     #   - monitoring-db-network
 
   alertmanager:
@@ -92,35 +70,13 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - ../alertmanager.yml:/etc/alertmanager/config.yml
-      - ../logs/alertmanager:/alertmanager  # save log on folder host
+      - ./alertmanager.yml:/etc/alertmanager/config.yml
+      - ./logs/alertmanager:/alertmanager  # save log on folder host
     command:
       - '--config.file=/etc/alertmanager/config.yml'
       - '--storage.path=/alertmanager'
       - '--log.level=debug'
-
-  cadvisor:
-    # image: google/cadvisor:v0.33.0
-    image: zcube/cadvisor:v0.45.0 # using this if google version not works
-    container_name: cadvisor
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:8080/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-    networks:
-      - default
-    #   - monitoring-db-network
-
+  
   loki:
     image: grafana/loki:3.3.2
     container_name: loki
@@ -135,65 +91,43 @@ services:
       start_period: 30s
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ../loki/loki-config.yaml:/etc/loki/local-config.yaml
-      - ../data/loki:/loki
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - ./data/loki:/loki
     networks:
       - default
 
-  promtail:
-    image: grafana/promtail:3.3.2
-    container_name: promtail
+  # testing alloy to replace promtail, alloy job here will be basically same for promtail, so you can choose which one will be user. For some information that promtail will be fully deprecated (and not supported at all) around after q1 2026
+  # if using promtail before, you can use "promtail-to-alloy-config.sh" bash script for convert promtail config to alloy config.
+  alloy:
+    image: grafana/alloy:v1.9.1
+    container_name: alloy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "promtail", "-version"]
+      test: ["CMD", "alloy", "-version"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
     volumes:
-      - ../promtail/promtail-config.yaml:/etc/promtail/config.yml
+      - ./alloy/alloy-config.alloy:/etc/alloy/config.alloy
+      - ./data/alloy_data:/var/lib/alloy/data  # Persistent storage for Alloy data
       - /var/log:/var/log:ro  # System logs
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # Docker container logs
-      - ../logs:/host/logs:ro  # Your application logs
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket for container discovery
-    command: -config.file=/etc/promtail/config.yml
+      - /:/rootfs:ro  # Root filesystem for logs
+      - /run:/run:ro  # Run directory for logs
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker/:ro
+      - /run/udev/data:/run/udev/data:ro
+    command:
+      - run 
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"  # Expose Alloy's HTTP server
     networks:
       - default
     depends_on:
       - loki
-
-  # testing alloy to replace promtail, alloy job here will be basically same for promtail, so you can choose which one will be user. For some information that promtail will be fully deprecated (and not supported at all) around after q1 2026
-  # if using promtail before, you can use "promtail-to-alloy-config.sh" bash script for convert promtail config to alloy config.
-  # alloy:
-  #   image: grafana/alloy:v1.9.1
-  #   container_name: alloy
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "alloy", "-version"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 10s
-  #   volumes:
-  #     - ../alloy/alloy-config.alloy:/etc/alloy/config.alloy
-  #     - alloy_data:/var/lib/alloy/data  # Persistent storage for Alloy data
-  #     - /var/log:/var/log:ro  # System logs
-  #     - /:/rootfs:ro  # Root filesystem for logs
-  #     - /run:/run:ro  # Run directory for logs
-  #     - /sys:/sys:ro
-  #     - /var/lib/docker/:/var/lib/docker/:ro
-  #     - /run/udev/data:/run/udev/data:ro
-  #   command:
-  #     - run 
-  #     - --server.http.listen-address=0.0.0.0:12345
-  #     - --storage.path=/var/lib/alloy/data
-  #     - /etc/alloy/config.alloy
-  #   ports:
-  #     - "12345:12345"  # Expose Alloy's HTTP server
-  #   networks:
-  #     - default
-  #   depends_on:
-  #     - loki
 
   # Postgres Exporter, enable this if need to add monitoring to postgresql database and in this configuration, the postgresql database run on docker, so make sure the compose docker postgresql run on same Networks setup
   # postgres_exporter:
@@ -210,8 +144,8 @@ services:
   #     timeout: 10s
   #     retries: 3
   #     start_period: 10s
-    # networks:
-    #   - default
+  #   networks:
+  #     - default
   #     - monitoring-db-network
 
   # nginx prometheus exporter, enable this if need to add monitoring to nginx server
@@ -237,8 +171,8 @@ services:
   #     - monitoring-db-network
 
 # UNCOMENT the networks below if you need to use postgres exporter or nginx exporter, so they can access the postgres db or nginx server
-networks:
-  default:
+# networks:
+#   default:
 #   # make sure if need to use postgres exporter to make sure if postgres using docker to using the same network below, so postgres_exporter can access the postgres db
-  # monitoring-db-network:
-  #   external: true
+#   monitoring-db-network:
+#     external: true

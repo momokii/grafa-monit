@@ -11,15 +11,18 @@ This project provides a complete containerized monitoring stack that combines me
 The monitoring stack includes:
 
 ### Core Monitoring Services
-- **Node Exporter**: Collects system metrics (CPU, memory, disk, network)
 - **Prometheus**: Time-series database for metrics storage and querying
 - **Grafana**: Unified visualization platform for metrics and logs
 - **AlertManager**: Alert handling, routing, and notifications
-- **cAdvisor**: Container resource usage and performance metrics
 
-### Log Aggregation Services
+### Unified Observability Services
+- **Grafana Alloy**: Next-generation unified observability agent that provides:
+  - **System Metrics Collection**: Replaces node-exporter for host system metrics
+  - **Container Metrics Collection**: Replaces cAdvisor for Docker container metrics
+  - **Log Collection**: Advanced log aggregation and shipping to Loki
 - **Loki**: Log aggregation system with efficient storage and querying
-- **Promtail**: Log collection agent for shipping logs to Loki
+
+> **Architecture Simplification**: This monitoring stack now uses **Grafana Alloy as a unified observability agent**, replacing the previous separate components (node-exporter, cAdvisor, and Promtail) with a single, more efficient solution.
 
 ### Optional Services (Configurable)
 - **PostgreSQL Exporter**: Database performance monitoring
@@ -30,22 +33,20 @@ The monitoring stack includes:
 
 ```
 grafana-host-monitoring/
-├── compose-linux/               # Linux Docker Compose configuration
-│   └── compose.yaml
-├── compose-windows/             # Windows Docker Compose configuration
-│   └── compose.yaml
+├── compose.yaml                 # Unified Docker Compose configuration
 ├── prometheus.yaml              # Prometheus configuration
 ├── alerts.yml                   # Prometheus alert rules
 ├── alertmanager.yml             # AlertManager configuration
 ├── .example.env                 # Environment variables template
 ├── .gitignore                   # Git ignore rules
-├── setup.sh                     # Cross-platform setup script
+├── setup.sh                     # Simplified setup script
 ├── stop.sh                      # Service management script
 ├── update.sh                    # Update and restart script
 ├── data/                        # Data storage (gitignored)
 │   ├── prometheus/              # Prometheus TSDB data
 │   ├── grafana/                 # Grafana database and plugins
-│   └── loki/                    # Loki chunks and index data
+│   ├── loki/                    # Loki chunks and index data
+│   └── alloy_data/              # Alloy persistent storage and positions
 ├── logs/                        # Application logs (gitignored)
 │   ├── grafana/                 # Grafana application logs
 │   ├── alertmanager/            # AlertManager logs
@@ -56,8 +57,11 @@ grafana-host-monitoring/
 ├── backups/                     # Configuration and data backups (gitignored)
 ├── loki/                        # Loki configuration
 │   └── loki-config.yaml
-├── promtail/                    # Promtail configuration
+├── alloy/                       # Grafana Alloy configuration (primary log collector)
+│   └── alloy-config.alloy
+├── promtail/                    # Legacy Promtail configuration (deprecated)
 │   └── promtail-config.yaml
+├── promtail-to-alloy-config.sh  # Migration script for converting Promtail to Alloy config
 ├── grafana/                     # Grafana provisioning
 │   └── provisioning/
 │       ├── dashboards/          # Auto-provisioned dashboards
@@ -77,6 +81,20 @@ grafana-host-monitoring/
     ├── restore.sh               # Restore script for disaster recovery
     ├── data-retention.sh        # Data archiving and cleanup
     └── maintenance.sh           # Combined maintenance operations
+
+### Migration and Conversion Tools
+
+- **promtail-to-alloy-config.sh**: Automated script for converting Promtail YAML configurations to Alloy format
+  ```bash
+  # Convert Promtail configuration to Alloy
+  ./promtail-to-alloy-config.sh promtail/promtail-config.yaml
+  
+  # Interactive conversion with options
+  ./promtail-to-alloy-config.sh
+  
+  # Specify custom output location
+  ./promtail-to-alloy-config.sh -o alloy/custom-config.alloy promtail-config.yaml
+  ```
 ```
 
 ## Setup and Configuration
@@ -86,14 +104,15 @@ grafana-host-monitoring/
 - Bash shell (Git Bash on Windows, native on Linux/macOS)
 - 4GB+ RAM recommended (2GB minimum)
 - 20GB+ disk space (depends on retention policies and log volume)
-- Network ports 3000, 3100, 8080, 9090, 9093, 9100 available
+- Network ports 3000, 3100, 9090, 9093, 12345 available
 
 ### Cross-Platform Support
 
-This monitoring stack supports both Linux and Windows environments with platform-specific optimizations:
+This monitoring stack uses a **unified Docker Compose configuration** that works across different platforms:
 
-- **Linux**: Uses native Docker networking and file system mounting
-- **Windows**: Uses Docker Desktop with WSL2 backend for optimal performance
+- **Simplified Architecture**: Single `compose.yaml` file for all platforms
+- **Unified Alloy Agent**: Replaces multiple specialized agents with one efficient solution
+- **Consistent Performance**: Same functionality across Linux, Windows, and macOS environments
 
 ### Quick Start
 
@@ -105,7 +124,7 @@ This monitoring stack supports both Linux and Windows environments with platform
 
 2. **Run the setup script:**
    ```bash
-   # The script automatically detects your OS and configures accordingly
+   # The script automatically configures the unified monitoring stack
    chmod +x setup.sh
    ./setup.sh
    
@@ -113,19 +132,49 @@ This monitoring stack supports both Linux and Windows environments with platform
    bash setup.sh
    ```
 
-3. **Start the monitoring stack:**
-   ```bash
-   # The setup script will guide you through the startup process
-   # Services will be available at:
-   ```
-
-4. **Access the interfaces:**
+3. **Access the interfaces:**
    - **Grafana**: http://localhost:3000 (admin/admin)
    - **Prometheus**: http://localhost:9090
    - **AlertManager**: http://localhost:9093
    - **Loki**: http://localhost:3100
-   - **cAdvisor**: http://localhost:8080
-   - **Node Exporter**: http://localhost:9100/metrics
+   - **Grafana Alloy**: http://localhost:12345/metrics
+
+## Unified Observability with Grafana Alloy
+
+This monitoring stack has been **completely redesigned around Grafana Alloy** as a unified observability agent, providing significant simplifications and improvements:
+
+### Architecture Simplification
+
+**Previous Architecture** (Multiple Agents):
+- Node Exporter (system metrics)
+- cAdvisor (container metrics) 
+- Promtail/Alloy (log collection)
+- Multiple ports and configurations
+
+**Current Architecture** (Unified Agent):
+- **Grafana Alloy**: Single agent handling all observability data
+  - System metrics collection (replaces node-exporter)
+  - Container metrics collection (replaces cAdvisor)
+  - Log collection and processing
+  - Unified configuration and management
+
+### Benefits of Unified Approach
+
+- **Simplified Deployment**: Single `compose.yaml` file instead of platform-specific configurations
+- **Reduced Resource Usage**: One agent instead of multiple specialized collectors
+- **Unified Configuration**: Single Alloy configuration file for all observability data
+- **Better Performance**: Optimized data collection and processing pipeline
+- **Future-Proof**: Built on Grafana's next-generation observability platform
+
+### Current Configuration Capabilities
+
+The Alloy configuration provides comprehensive observability coverage:
+
+- **System Metrics**: CPU, memory, disk, network metrics (via `prometheus.exporter.unix`)
+- **Container Metrics**: Docker container resource usage (via `prometheus.exporter.cadvisor`)
+- **System Logs**: Journal logs and file-based log collection
+- **Container Logs**: Docker container log collection with parsing
+- **Unified Export**: Both metrics and logs sent to appropriate destinations
 
 ### Manual Setup (Alternative)
 
@@ -137,14 +186,9 @@ If you prefer manual setup or need to customize the installation:
    # Edit .env with your PostgreSQL credentials if using postgres_exporter
    ```
 
-2. **Choose your platform and start services:**
+2. **Start services:**
    ```bash
-   # For Linux
-   cd compose-linux
-   docker compose up -d
-   
-   # For Windows
-   cd compose-windows
+   # Using the unified compose configuration
    docker compose up -d
    ```
 
@@ -153,8 +197,8 @@ If you prefer manual setup or need to customize the installation:
 The stack includes three management scripts for different operations:
 
 #### Setup Script (`setup.sh`)
-- **Purpose**: Initial setup and configuration
-- **Features**: OS detection, directory creation, network setup, permission handling
+- **Purpose**: Initial setup and configuration of the unified monitoring stack
+- **Features**: Directory creation, network setup, permission handling, service orchestration
 - **Usage**: 
   ```bash
   ./setup.sh                    # Full setup with all checks
@@ -188,24 +232,24 @@ The stack includes three management scripts for different operations:
 
 ### Metrics Collection and Monitoring
 
-The stack provides comprehensive metrics monitoring covering:
+The stack provides comprehensive metrics monitoring through the unified Alloy agent:
 
-- **Host System Metrics**: CPU, memory, disk usage, network traffic, system load
-- **Container Metrics**: Resource usage, performance, and health status for all running containers
+- **Host System Metrics**: CPU, memory, disk usage, network traffic, system load (via Alloy's unix exporter)
+- **Container Metrics**: Resource usage, performance, and health status for all running containers (via Alloy's cAdvisor exporter)
 - **Application Metrics**: Custom application metrics via Prometheus exporters
 - **Database Metrics**: PostgreSQL performance monitoring (when enabled)
 - **Web Server Metrics**: Nginx performance and request metrics (when enabled)
 
 ### Log Aggregation and Analysis
 
-Centralized logging capabilities include:
+Centralized logging capabilities through Alloy's advanced log processing:
 
-- **System Logs**: Operating system logs and kernel messages
-- **Application Logs**: Structured logging from your applications
-- **Container Logs**: Automatic collection of Docker container stdout/stderr
-- **Web Server Logs**: Nginx access and error logs with parsing
-- **API Logs**: Backend application request/response logging
-- **Custom Log Sources**: Configurable log collection from any file or service
+- **System Logs**: Operating system logs and kernel messages via journald and file collection
+- **Application Logs**: Structured logging from your applications with advanced parsing
+- **Container Logs**: Automatic collection of Docker container stdout/stderr with container metadata
+- **Web Server Logs**: Nginx access and error logs with parsing and field extraction
+- **API Logs**: Backend application request/response logging with structured data
+- **Custom Log Sources**: Configurable log collection from any file or service with advanced processing
 
 ### Supported Log Formats
 
@@ -346,21 +390,33 @@ These dashboards can be customized to suit your specific needs:
 
 Your customized dashboards will persist in the Grafana data volume.
 
-## Log Management with Loki and Promtail
+## Log Management with Loki and Grafana Alloy
 
 ### Log Collection Strategy
 
-The stack uses Promtail to collect logs from multiple sources:
+The stack uses **Grafana Alloy** to collect logs from multiple sources with enhanced capabilities compared to the legacy Promtail setup:
 
-#### Automatic Container Log Collection
-- **Docker Container Logs**: Automatic discovery and collection of container stdout/stderr
-- **Service Discovery**: Dynamic discovery of new containers
-- **Label Enrichment**: Automatic labeling with container metadata
+#### Enhanced Container Log Collection
+- **Docker Container Discovery**: Advanced automatic discovery and collection of container logs
+- **Dynamic Service Discovery**: Real-time discovery of new containers with configurable filters
+- **Rich Label Enrichment**: Comprehensive automatic labeling with container and service metadata
+- **Performance Optimization**: Better resource utilization and log processing throughput
 
-#### File-Based Log Collection
-- **System Logs**: Collection from `/var/log/*` for system events
-- **Application Logs**: Custom application log files from configured paths
-- **Structured Logs**: JSON log parsing with field extraction
+#### Advanced File-Based Log Collection
+- **System Logs**: Enhanced collection from `/var/log/*` with better parsing capabilities
+- **Application Logs**: Flexible custom application log files from configured paths
+- **Structured Logs**: Advanced JSON log parsing with comprehensive field extraction
+- **Multi-line Log Support**: Improved handling of stack traces and multi-line log entries
+
+### Alloy Configuration Advantages
+
+Compared to the legacy Promtail configuration, Alloy provides:
+
+- **Better Performance**: More efficient log processing and lower resource consumption
+- **Enhanced Parsing**: Advanced pipeline stages with more flexible data transformation
+- **Improved Discovery**: More sophisticated service discovery mechanisms
+- **Unified Configuration**: Single configuration format for multiple observability data types
+- **Future-Proof Architecture**: Active development and long-term support from Grafana Labs
 
 #### Application Integration Examples
 
@@ -1080,8 +1136,8 @@ docker network inspect monitoring-network
 
 #### 5. Loki Not Receiving Logs
 ```bash
-# Check Promtail configuration
-docker logs promtail
+# Check Alloy configuration and status
+docker logs alloy
 
 # Verify Loki is accessible
 curl http://localhost:3100/ready
@@ -1091,8 +1147,11 @@ curl -X POST "http://localhost:3100/loki/api/v1/push" \
   -H "Content-Type: application/json" \
   -d '{"streams": [{"stream": {"job": "test"}, "values": [["'$(date +%s)'000000000", "test log message"]]}]}'
 
-# Check Promtail targets
-curl http://localhost:9080/targets
+# Check Alloy metrics and targets
+curl http://localhost:12345/metrics
+
+# Verify Alloy configuration syntax
+docker exec alloy alloy fmt /etc/alloy/config.alloy
 ```
 
 #### 6. High Resource Usage
@@ -1112,11 +1171,14 @@ curl http://localhost:9090/api/v1/query?query=prometheus_tsdb_symbol_table_size_
 # Check Docker socket permissions
 ls -la /var/run/docker.sock
 
-# Verify Promtail can access Docker API
-docker exec promtail ls -la /var/run/docker.sock
+# Verify Alloy can access Docker API
+docker exec alloy ls -la /var/run/docker.sock
 
 # Check service discovery logs
-docker logs promtail | grep discovery
+docker logs alloy | grep discovery
+
+# Verify Alloy configuration for discovery blocks
+docker exec alloy alloy fmt --check /etc/alloy/config.alloy
 ```
 
 ### Debugging Commands
@@ -1128,7 +1190,7 @@ curl -f http://localhost:9090/-/healthy   # Prometheus
 curl -f http://localhost:3000/api/health  # Grafana
 curl -f http://localhost:9093/-/healthy   # AlertManager
 curl -f http://localhost:3100/ready       # Loki
-curl -f http://localhost:9080/metrics     # Promtail
+curl -f http://localhost:12345/metrics     # Alloy
 curl -f http://localhost:8080/healthz     # cAdvisor
 ```
 
@@ -1284,6 +1346,8 @@ This monitoring stack is regularly updated to include:
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Documentation](https://grafana.com/docs/)
 - [Loki Documentation](https://grafana.com/docs/loki/)
+- [Grafana Alloy Documentation](https://grafana.com/docs/alloy/)
+- [Promtail to Alloy Migration Guide](https://grafana.com/docs/alloy/latest/tasks/migrate/from-promtail/)
 - [AlertManager Documentation](https://prometheus.io/docs/alerting/latest/alertmanager/)
 
 ### Community Resources
@@ -1300,5 +1364,14 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 
 ---
 
-*Last updated: August 18, 2025*  
-*Version: 2.0 - Complete Observability Stack*
+*Last updated: August 30, 2025*  
+*Version: 3.0 - Unified Alloy-Based Observability Stack*
+
+### Recent Updates (v3.0)
+- **Complete Architecture Redesign**: Unified Grafana Alloy agent replaces multiple specialized collectors
+- **Simplified Deployment**: Single `compose.yaml` file for all platforms instead of platform-specific configurations
+- **Unified Metrics Collection**: Alloy now handles system metrics (replaces node-exporter) and container metrics (replaces cAdvisor)
+- **Enhanced Log Processing**: Advanced log collection and processing capabilities through Alloy
+- **Streamlined Scripts**: Simplified setup, stop, and update scripts reflecting the unified architecture
+- **Reduced Resource Usage**: Single agent approach reduces overall system resource consumption
+- **Future-Proof Foundation**: Built on Grafana's next-generation observability platform
