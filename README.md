@@ -137,6 +137,8 @@ This monitoring stack uses a **unified Docker Compose configuration** that works
    - **Prometheus**: http://localhost:9090
    - **AlertManager**: http://localhost:9093
    - **Loki**: http://localhost:3100
+
+> **Note**: Grafana credentials can be customized by setting `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD` environment variables in your `.env` file before starting the services.
    - **Grafana Alloy**: http://localhost:12345/metrics
 
 ## Unified Observability with Grafana Alloy
@@ -1166,20 +1168,20 @@ curl http://localhost:9090/api/v1/query?query=prometheus_tsdb_symbol_table_size_
 # Edit loki/loki-config.yaml and reduce cache sizes
 ```
 
-#### 7. Service Discovery Not Working
+#### 8. Node Exporter Full Dashboard Query Issues
 ```bash
-# Check Docker socket permissions
-ls -la /var/run/docker.sock
+# If the Node Exporter Full dashboard shows "N/A" for filesystem metrics
+# This happens when using Alloy instead of traditional node-exporter
 
-# Verify Alloy can access Docker API
-docker exec alloy ls -la /var/run/docker.sock
+# Check if metrics are available with different mountpoint labels
+curl http://localhost:9090/api/v1/query?query=node_filesystem_size_bytes
 
-# Check service discovery logs
-docker logs alloy | grep discovery
-
-# Verify Alloy configuration for discovery blocks
-docker exec alloy alloy fmt --check /etc/alloy/config.alloy
+# The dashboard expects mountpoint="/rootfs/..." but Alloy uses mountpoint="/..."
+# To fix: Edit dashboard queries to use the correct mountpoint pattern or
+# Use the "Node Exporter Server Metrics" dashboard which works better with Alloy
 ```
+
+> **Tip**: When using Grafana Alloy, the "Node Exporter Server Metrics" (ID: 11076) dashboard works better than "Node Exporter Full" (ID: 1860) for filesystem monitoring due to different mountpoint labeling.
 
 ### Debugging Commands
 

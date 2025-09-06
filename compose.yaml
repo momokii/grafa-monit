@@ -39,8 +39,8 @@ services:
       retries: 3
       start_period: 30s
     environment:
-    - GF_SECURITY_ADMIN_PASSWORD=admin # you can change this or using ENV variable, but on default will using admin/admin 
-    - GF_SECURITY_ADMIN_USER=admin
+    - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin} # you can change this or using ENV variable, but on default will using admin/admin
+    - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin} # you can change this or using ENV variable, but on default will using admin/admin
     - GF_USERS_ALLOW_SIGN_UP=false
     - GF_LOG_MODE=console file  # Log to console and file
     - GF_LOG_LEVEL=info         # Log level

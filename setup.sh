@@ -70,13 +70,12 @@ check_docker() {
 create_directories() {
     print_step "Creating required directories..."
     
-    local directories=(
-        "data/prometheus"
-        "data/grafana" 
-        "data/loki"
-        "data/alloy_data"
-        "logs/grafana"
-        "logs/alertmanager"
+    # Create data directories with specific structure
+    mkdir -p data/{prometheus,grafana,loki,alloy_data}
+    mkdir -p logs/{prometheus,grafana,alertmanager}
+    
+    # Additional directories for completeness
+    local additional_directories=(
         "logs/nginx"
         "logs/api"
         "logs/app"
@@ -88,7 +87,7 @@ create_directories() {
         "grafana/provisioning/notifiers"
     )
     
-    for dir in "${directories[@]}"; do
+    for dir in "${additional_directories[@]}"; do
         if [ ! -d "$dir" ]; then
             mkdir -p "$dir"
             print_info "Created directory: $dir"
@@ -104,34 +103,66 @@ create_directories() {
 set_permissions() {
     print_step "Setting proper permissions..."
     
-    # Set permissions for data directories (avoiding permission issues)
-    if [ "$OS" = "linux" ]; then
-        # Prometheus data directory
-        if [ -d "data/prometheus" ]; then
-            sudo chown -R 65534:65534 data/prometheus 2>/dev/null || {
-                print_warning "Could not set prometheus permissions, you may need to run: sudo chown -R 65534:65534 data/prometheus"
-            }
-        fi
-        
-        # Grafana data directory  
-        if [ -d "data/grafana" ]; then
-            sudo chown -R 472:472 data/grafana 2>/dev/null || {
-                print_warning "Could not set grafana permissions, you may need to run: sudo chown -R 472:472 data/grafana"
-            }
-        fi
-        
-        # Loki data directory
-        if [ -d "data/loki" ]; then
-            sudo chown -R 10001:10001 data/loki 2>/dev/null || {
-                print_warning "Could not set loki permissions, you may need to run: sudo chown -R 10001:10001 data/loki"
-            }
-        fi
-        
-        # Log directories
-        chmod -R 755 logs/ 2>/dev/null || print_warning "Could not set log directory permissions"
+    # Create directories if they don't exist (using your exact structure)
+    mkdir -p data/{prometheus,grafana,loki,alloy_data}
+    mkdir -p logs/{prometheus,grafana,alertmanager}
+    
+    # Set correct ownership for each service
+    print_info "Setting container-specific ownership..."
+    
+    # Prometheus user (65534:65534)
+    if sudo chown -R 65534:65534 data/prometheus 2>/dev/null; then
+        print_success "Set Prometheus permissions (65534:65534)"
+    else
+        print_warning "Could not set Prometheus permissions - you may need to run manually: sudo chown -R 65534:65534 data/prometheus"
     fi
     
-    print_success "Permissions set successfully"
+    # Grafana user (472:472)
+    if sudo chown -R 472:472 data/grafana 2>/dev/null; then
+        print_success "Set Grafana permissions (472:472)"
+    else
+        print_warning "Could not set Grafana permissions - you may need to run manually: sudo chown -R 472:472 data/grafana"
+    fi
+    
+    # Loki user (10001:10001)
+    if sudo chown -R 10001:10001 data/loki 2>/dev/null; then
+        print_success "Set Loki permissions (10001:10001)"
+    else
+        print_warning "Could not set Loki permissions - you may need to run manually: sudo chown -R 10001:10001 data/loki"
+    fi
+    
+    # Alloy (root - 0:0)
+    if sudo chown -R 0:0 data/alloy_data 2>/dev/null; then
+        print_success "Set Alloy permissions (0:0)"
+    else
+        print_warning "Could not set Alloy permissions - you may need to run manually: sudo chown -R 0:0 data/alloy_data"
+    fi
+    
+    # Set proper permissions on directories
+    print_info "Setting directory permissions..."
+    if sudo chmod -R 755 data/ 2>/dev/null; then
+        print_success "Set data directory permissions (755)"
+    else
+        print_warning "Could not set data directory permissions"
+    fi
+    
+    if sudo chmod -R 755 logs/ 2>/dev/null; then
+        print_success "Set logs directory permissions (755)"
+    else
+        print_warning "Could not set logs directory permissions"
+    fi
+    
+    # Verify permissions
+    print_info "Verifying permissions..."
+    echo
+    print_info "Data directories:"
+    ls -la data/
+    echo
+    print_info "Log directories:"
+    ls -la logs/
+    echo
+    
+    print_success "Permissions configuration completed"
 }
 
 # Function to check configuration files

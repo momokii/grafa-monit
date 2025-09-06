@@ -22,6 +22,8 @@ prometheus.remote_write "default" {
 
 // ! ====================== SYSTEM LOGS & JOURNAL
 
+// ! NOTES, FOR WINDOWS OR WSL BASED TRYING USING NATIVE DOCKER, PLEASE COMMENT OUT THE JOURNAL SOURCE BELOW
+// ! AS IT WILL CAUSE ERROR IF SYSTEMD JOURNAL NOT AVAILABLE
 loki.source.journal "journal" {
 	max_age       = "24h0m0s"
 	relabel_rules = discovery.relabel.journal.rules
@@ -122,85 +124,107 @@ prometheus.scrape "dockermetrics" {
 
 // ! ======================
 // ! notes:  DOCKER LOGS FOR "CATCH ALL" NOT REALLY RECOMMENDED BECAUSE CAN CAUSE TOO NOISY IN LOGS
-// discovery.docker "dockerlogs" {
-//   host = "unix:///var/run/docker.sock"
-// }
+discovery.docker "dockerlogs" {
+  host = "unix:///var/run/docker.sock"
+}
 
-// discovery.relabel "dockerlogs" {
-//       targets = []
+discovery.relabel "dockerlogs" {
+      targets = []
 
-//       rule {
-//           source_labels = ["__meta_docker_container_name"]
-//         //   regex = "/(.*)"
-//           target_label = "service_name"
-//       }
+      rule {
+          source_labels = ["__meta_docker_container_name"]
+        //   regex = "/(.*)"
+          target_label = "service_name"
+      }
 
-//   }
+  }
 
-// loki.source.docker "default" {
-//   host       = "unix:///var/run/docker.sock"
-//   targets    = discovery.docker.dockerlogs.targets
-//   labels     = {"platform" = "docker"}
-//   relabel_rules = discovery.relabel.dockerlogs.rules
-//   forward_to = [loki.write.default.receiver]
-// }
+loki.source.docker "default" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.dockerlogs.targets
+  labels     = {"platform" = "docker"}
+  relabel_rules = discovery.relabel.dockerlogs.rules
+  forward_to = [loki.write.default.receiver]
+}
 
 // ! ====================== SPECIFIC MONITORING FOR per CONTAINER LOGS MONITORING
+// ! IF YOU WANT TO MONITOR SPECIFIC CONTAINER, UNCOMMENT THE EXAMPLE BELOW AND MODIFY IT AS NEEDED
 
-// ! ======= REDIS
-discovery.relabel "redis_container" {
-	targets = []
+// ! EXAMPLE OF FIBER APP CUSTOM EXTRACT CUSTOM LOG
+// discovery.relabel "LABEL_APP_NAME_HERE" {
+// 	targets = []
 
-	rule {
-		source_labels = ["__meta_docker_container_name"]
-		target_label  = "container_name"
-	}
+//     rule {
+//         source_labels = ["__meta_docker_container_name"]
+//         target_label  = "container_name"
+//     }
 
-	rule {
-		target_label = "job"
-		replacement  = "redis"
-	}
+//     rule {
+// ! recommendation to JUST add it to one "specific" label if you also using the "CATCH ALL" docker container setup above, this approach can make literal difference label setup like at "service" label will be all logs from docker that just raw log and the specific you parsing like this one will be at label "service_custom_full_log" will be help to found the "custom parsing" logs that we monitored
+//         target_label = "service_custom_full_log"
+//         replacement  = "LABEL_APP_NAME_HERE_APPEAR_IN_GRAFANA"
+//     }
+// }
 
-	rule {
-		target_label = "service"
-		replacement  = "redis"
-	}
-}
+// discovery.docker "LABEL_APP_NAME_HERE" {
+//     host             = "unix:///var/run/docker.sock"
+//     refresh_interval = "5s"
 
-discovery.docker "redis_container" {
-	host             = "unix:///var/run/docker.sock"
-	refresh_interval = "5s"
+//     filter {
+//         name   = "name"
+//         values = ["CONTAINER_NAME"]
+//     }
+// }
 
-	filter {
-		name   = "name"
-		values = ["redis", "redis-server", "redis-stack"]
-	}
-}
+// loki.source.docker "LABEL_APP_NAME_HERE" {
+//     host       = "unix:///var/run/docker.sock"
+//     targets    = discovery.docker.LABEL_APP_NAME_HERE.targets
+//     forward_to = [loki.process.LABEL_APP_NAME_HERE.receiver]
 
-loki.process "redis_container" {
-	forward_to = [loki.write.default.receiver]
+//     relabel_rules = discovery.relabel.LABEL_APP_NAME_HERE.rules
+// }
 
-	stage.regex {
-		expression = "^(?P<pid>\\d+):(?P<role>\\w+) (?P<timestamp>\\d{2} \\w{3} \\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}) (?P<level>[*#-]) (?P<message>.*)"
-	}
+// loki.process "LABEL_APP_NAME_HERE" {
+//     forward_to = [loki.write.default.receiver]
 
-	stage.labels {
-		values = {
-			level = null,
-			role  = null,
-		}
-	}
+//     stage.regex {
+//         expression = "^(?P<timestamp>\\d{2}:\\d{2}:\\d{2}) \\| (?P<status_code>\\d{3}) \\| +(?P<latency>[\\d\\.]+[µmsnhd]+) \\| (?P<client_ip>[\\d\\.]+) \\| (?P<method>\\w+) \\| (?P<path>[^|]+) \\| ?(?P<message>.*?)$"
+//     }
 
-	stage.timestamp {
-		source = "timestamp"
-		format = "02 Jan 2006 15:04:05.000"
-	}
-}
+//     stage.regex {
+//         expression = "^(?P<timestamp>\\d{2}:\\d{2}:\\d{2}) (?P<raw_message>.*)"
+//     }
 
-loki.source.docker "redis_container" {
-	host             = "unix:///var/run/docker.sock"
-	targets          = discovery.docker.redis_container.targets
-	forward_to       = [loki.process.redis_container.receiver]
-	relabel_rules    = discovery.relabel.redis_container.rules
-	refresh_interval = "5s"
-}
+//     stage.labels {
+//         values = {
+//             status_code = "",
+//             method      = "",
+//             level       = "",
+//         }
+//     }
+    
+//     stage.structured_metadata {
+//         values = {
+//             latency   = "latency",
+//             path      = "path",
+//             client_ip = "client_ip",
+//             message   = "message",
+// 			status_code = "status_code",
+// 			method = "method",
+//         }
+//     }
+
+//     stage.template {
+//         source   = "level"
+//         template = `{{ if .status_code }}{{ if ge .status_code "500" }}error{{ else if ge .status_code "400" }}warn{{ else if ge .status_code "300" }}info{{ else }}debug{{ end }}{{ else }}info{{ end }}`
+//     }
+
+//     stage.static_labels {
+//         values = {
+//             app         = "APP-NAME-HERE",
+//             log_type    = "access",
+//             environment = "testing",
+//         }
+//     }
+// }
+
