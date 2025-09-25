@@ -12,21 +12,57 @@ alerting:
         - targets: ['alertmanager:9093']
 
 scrape_configs:
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: instance
-        replacement: "localhost"
+  # - job_name: 'node-exporter'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: instance
+  #       replacement: "localhost"
 
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'cadvisor'
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']
+
+  # blackbox exxporter setup for scrapping for prometheus
+  - job_name: 'blackbox'
+    metrics_path: /probe
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets:
+        - http://prometheus.io    # Target to probe with http.
+        # - https://prometheus.io   # Target to probe with https.
+        # - http://example.com:8080 # Target to probe with http on port 8080.
+        labels:
+          probe_module: http_website_2xx
+
+      - targets: 
+        - http://api.domain/api/health # api endpoint
+        labels:
+          probe_module: http_api_2xx
+
+    relabel_configs:
+      # 1. Read the custom 'probe_module' label and set it as the module parameter.
+      - source_labels: [probe_module]
+        target_label: __param_module
+
+      # 2. Copy the target's address to the '__param_target' parameter.
+      - source_labels: [__address__]
+        target_label: __param_target
+      
+      # 3. Set the 'instance' label for Grafana/alerts to be the target's address.
+      - source_labels: [__param_target]
+        target_label: instance
+      
+      # 4. Change the scrape address to be the blackbox exporter itself.
+      - target_label: __address__
+        replacement: blackbox_exporter:9115  # The blackbox exporter's real address.
+  - job_name: 'blackbox_exporter'  # collect blackbox exporter's operational metrics.
+    static_configs:
+      - targets: ['blackbox_exporter:9115']
 
   # Uncomment the following section if you need to using postgres exporter
   # - job_name: postgres

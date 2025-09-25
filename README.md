@@ -25,6 +25,7 @@ The monitoring stack includes:
 > **Architecture Simplification**: This monitoring stack now uses **Grafana Alloy as a unified observability agent**, replacing the previous separate components (node-exporter, cAdvisor, and Promtail) with a single, more efficient solution.
 
 ### Optional Services (Configurable)
+- **Blackbox Exporter**: HTTP/HTTPS, TCP, ICMP, and DNS probe monitoring
 - **PostgreSQL Exporter**: Database performance monitoring
 - **Nginx Exporter**: Web server metrics and performance monitoring
 - **Redis Monitoring**: Redis datasource integration for real-time Redis metrics
@@ -41,7 +42,7 @@ grafana-host-monitoring/
 ├── .gitignore                   # Git ignore rules
 ├── setup.sh                     # Simplified setup script
 ├── stop.sh                      # Service management script
-├── update.sh                    # Update and restart script
+├── update.sh                    ****# Update and restart script
 ├── data/                        # Data storage (gitignored)
 │   ├── prometheus/              # Prometheus TSDB data
 │   ├── grafana/                 # Grafana database and plugins
@@ -159,6 +160,52 @@ This monitoring stack has been **completely redesigned around Grafana Alloy** as
   - Container metrics collection (replaces cAdvisor)
   - Log collection and processing
   - Unified configuration and management
+- **Blackbox Exporter**: Dedicated probe monitoring
+  - HTTP/HTTPS endpoint monitoring
+  - TCP connection testing
+  - ICMP/Ping checks
+  - DNS query testing
+
+### Probe Monitoring Configuration
+
+Blackbox exporter provides comprehensive probe-based monitoring:
+
+1. **HTTP Probing**:
+   - Endpoint availability monitoring
+   - SSL/TLS certificate validation
+   - Response content validation
+   - HTTP header checks
+
+2. **Network Probing**:
+   - TCP connection testing
+   - ICMP ping checks
+   - DNS query validation
+
+3. **Usage Example**:
+   ```yaml
+   scrape_configs:
+     - job_name: 'blackbox'
+       metrics_path: /probe
+       params:
+         module: [http_2xx]  # Use the HTTP 2xx module
+       static_configs:
+         - targets:
+           - https://example.com   # Target to probe
+           - http://internal.app   # Internal service
+       relabel_configs:
+         - source_labels: [__address__]
+           target_label: __param_target
+         - source_labels: [__param_target]
+           target_label: instance
+         - target_label: __address__
+           replacement: blackbox_exporter:9115  # Blackbox exporter address
+   ```
+
+4. **Key Metrics**:
+   - `probe_success`: Indicates if the probe was successful
+   - `probe_duration_seconds`: Time taken for the probe
+   - `probe_http_ssl_earliest_cert_expiry`: SSL certificate expiry
+   - `probe_dns_lookup_time_seconds`: DNS resolution time
 
 ### Benefits of Unified Approach
 
@@ -753,6 +800,73 @@ The stack monitors its own resource usage through cAdvisor and can alert on:
 ## Optional Services Configuration
 
 The monitoring stack includes optional services that can be enabled based on your requirements:
+
+### Blackbox Exporter for Endpoint Monitoring
+
+Enable comprehensive URL and endpoint monitoring:
+
+1. **Configure Service:**
+   ```yaml
+   # Already configured in compose.yaml
+   blackbox_exporter:
+     image: prom/blackbox-exporter:v0.24.0
+     ports:
+       - "9115:9115"
+     volumes:
+       - ./blackbox_exporter/blackbox.yml:/config/blackbox.yml:ro
+     command:
+       - --config.file=/config/blackbox.yml
+   ```
+
+2. **Setup Probe Targets:**
+   ```yaml
+   # Add to prometheus.yaml under scrape_configs
+   - job_name: 'blackbox'
+     metrics_path: /probe
+     params:
+       module: [http_2xx]  # Module for HTTP 2xx check
+     static_configs:
+       - targets:
+         - https://example.com
+         - http://your-app:8080/health
+     relabel_configs:
+       - source_labels: [__address__]
+         target_label: __param_target
+       - source_labels: [__param_target]
+         target_label: instance
+       - target_label: __address__
+         replacement: blackbox_exporter:9115
+   ```
+
+3. **Custom Probe Configuration:**
+   ```yaml
+   # In blackbox_exporter/blackbox.yml
+   modules:
+     http_2xx:
+       prober: http
+       timeout: 5s
+       http:
+         valid_status_codes: [200, 201, 202, 204]
+         tls_config:
+           insecure_skip_verify: false
+     
+     http_post_2xx:
+       prober: http
+       http:
+         method: POST
+         headers:
+           Content-Type: application/json
+         body: '{"test": "probe"}'
+   ```
+
+4. **Available Metrics:**
+   - `probe_success`: Indicates if the probe was successful
+   - `probe_duration_seconds`: Time taken for the probe
+   - `probe_http_ssl_earliest_cert_expiry`: SSL certificate expiry
+   - `probe_http_status_code`: HTTP response code
+   - `probe_http_version`: HTTP version used
+   - `probe_ip_protocol`: IP protocol version (4/6)
+   - `probe_dns_lookup_time_seconds`: DNS resolution time
 
 ### PostgreSQL Monitoring
 

@@ -129,6 +129,28 @@ services:
     depends_on:
       - loki
 
+  blackbox_exporter:
+    image: prom/blackbox-exporter:v0.27.0
+    container_name: blackbox_exporter
+    restart: unless-stopped
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./blackbox_exporter/blackbox_exporter.yaml:/etc/blackbox_exporter/config.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:9115/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - default
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+      - --web.listen-address=:9115
+      - --log.level=info
+    
+
   # Postgres Exporter, enable this if need to add monitoring to postgresql database and in this configuration, the postgresql database run on docker, so make sure the compose docker postgresql run on same Networks setup
   # postgres_exporter:
   #   image: quay.io/prometheuscommunity/postgres-exporter

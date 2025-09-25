@@ -1,0 +1,35 @@
+modules:
+  http_website_2xx:
+    # This module is for probing standard websites.
+    # It follows redirects and expects a 2xx status code.
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      # An empty list defaults to accepting all 2xx status codes.
+      valid_status_codes: []
+      # It's common for websites to redirect (e.g., http to https or non-www to www).
+      no_follow_redirects: false
+      # Explicitly define TLS configuration for clarity and security.
+      # This will verify the SSL/TLS certificate.
+      tls_config:
+        insecure_skip_verify: false
+
+  http_api_2xx:
+    # This module is for probing API endpoints.
+    # It does NOT follow redirects and expects a JSON content type.
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      # Also defaults to accepting all 2xx status codes.
+      valid_status_codes: []
+      # APIs generally should not redirect. A redirect might indicate a misconfiguration.
+      # Failing on redirect is a stricter, better check for APIs.
+      no_follow_redirects: true
+      # It's a good practice to specify expected headers for API calls.
+      headers:
+        Accept: application/json
+      # Explicitly define TLS configuration.
+      tls_config:
+        insecure_skip_verify: false

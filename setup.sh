@@ -175,6 +175,7 @@ check_config_files() {
         "alertmanager.yml:Alertmanager configuration"
         "loki/loki-config.yaml:Loki configuration"
         "alloy/alloy-config.alloy:Alloy configuration"
+        "blackbox_exporter/blackbox_exporter.yaml:Blackbox Exporter configuration"
         "grafana/provisioning/datasources/datasource.yml:Grafana datasource configuration"
     )
     
@@ -286,6 +287,16 @@ start_services() {
     fi
     
     sleep 5
+
+    print_info "Starting Probing services..."
+    if docker compose -f "$COMPOSE_FILE" up -d blackbox_exporter; then
+        print_success "Probing services started"
+    else
+        print_error "Failed to start Probing services"
+        exit 1
+    fi
+
+    sleep 5
     
     print_info "Starting visualization services..."
     if docker compose -f "$COMPOSE_FILE" up -d grafana; then
@@ -306,6 +317,7 @@ wait_for_services() {
         "alertmanager:9093:/-/healthy"
         "loki:3100:/ready"
         "alloy:12345:/metrics"
+        "blackbox_exporter:9115/-/healthy"
     )
     
     local max_wait=180 # 3 minutes
@@ -339,7 +351,7 @@ wait_for_services() {
 show_status() {
     print_step "Checking service status..."
     echo
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|loki|alloy|NAMES)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|loki|alloy|blackbox_exporter|NAMES)"
     echo
 }
 
@@ -353,8 +365,9 @@ show_access_info() {
     print_info "  🚨 Alertmanager:  http://localhost:9093"
     echo
     print_info "Unified Monitoring Services:"
-    print_info "  � Alloy:         http://localhost:12345/metrics (logs + system metrics + container metrics)"
-    print_info "  📝 Loki:          http://localhost:3100"
+    print_info "  � Alloy:               http://localhost:12345/metrics (logs + system metrics + container metrics)"
+    print_info "  📝 Loki:               http://localhost:3100"
+    print_info "     Blackbox Exporter:  http://localhost:9115"
     echo
     print_info "Optional Services (commented in compose):"
     print_info "  🐘 PostgreSQL Exporter: http://localhost:9187/metrics (if enabled)"

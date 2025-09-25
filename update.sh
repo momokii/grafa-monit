@@ -138,6 +138,7 @@ show_updated_versions() {
         "prom/alertmanager:v0.28.1"
         "grafana/loki:3.3.2"
         "grafana/alloy:v1.9.1"
+        "prom/blackbox-exporter:v0.24.0"
     )
     
     for image in "${images[@]}"; do
@@ -151,7 +152,7 @@ show_updated_versions() {
 update_services() {
     print_step "Updating monitoring services..."
     
-    local services=("prometheus" "alertmanager" "loki" "alloy" "grafana")
+    local services=("prometheus" "alertmanager" "loki" "alloy" "blackbox_exporter" "grafana")
     local update_mode="$1"
     
     if [ "$update_mode" = "--rolling" ]; then
@@ -255,6 +256,14 @@ verify_services() {
     else
         print_warning "Alloy health check failed"
         failed_services+=("alloy")
+    fi
+
+    # Check Blackbox Exporter
+    if curl -s http://localhost:9115/health >/dev/null 2>&1; then
+        print_success "Blackbox Exporter is healthy"
+    else
+        print_warning "Blackbox Exporter health check failed"
+        failed_services+=("blackbox_exporter")
     fi
     
     if [ ${#failed_services[@]} -gt 0 ]; then
@@ -484,6 +493,7 @@ main() {
     echo "  - Alertmanager: http://localhost:9093"
     echo "  - Loki:        http://localhost:3100"
     echo "  - Alloy:       http://localhost:12345"
+    echo "  - Blackbox:    http://localhost:9115"
 }
 
 # Check if running as script (not sourced)

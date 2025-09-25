@@ -44,7 +44,7 @@ stop_services() {
     cd "$COMPOSE_DIR"
     
     # Stop services in reverse dependency order
-    local services=("alloy" "loki" "grafana" "alertmanager" "prometheus")
+    local services=("alloy" "loki" "grafana" "blackbox_exporter" "alertmanager" "prometheus")
     
     for service in "${services[@]}"; do
         if docker compose ps -q "$service" &>/dev/null && [ -n "$(docker compose ps -q "$service")" ]; then
@@ -93,6 +93,16 @@ remove_volumes() {
 remove_networks() {
     print_info "Removing custom networks..."
     
+    # Add blackbox_exporter image
+    local images=(
+        "prom/prometheus:v2.47.0"
+        "grafana/grafana:12.1.1"
+        "prom/alertmanager:v0.28.1"
+        "grafana/loki:3.3.2"
+        "grafana/alloy:v1.9.1"
+        "prom/blackbox-exporter:v0.24.0"
+    )
+
     # Remove monitoring network if it exists and no containers are using it
     if docker network ls --format "{{.Name}}" | grep -q "^monitoring-network$"; then
         if docker network rm monitoring-network 2>/dev/null; then
