@@ -15,14 +15,13 @@ The monitoring stack includes:
 - **Grafana**: Unified visualization platform for metrics and logs
 - **AlertManager**: Alert handling, routing, and notifications
 
-### Unified Observability Services
-- **Grafana Alloy**: Next-generation unified observability agent that provides:
-  - **System Metrics Collection**: Replaces node-exporter for host system metrics
-  - **Container Metrics Collection**: Replaces cAdvisor for Docker container metrics
-  - **Log Collection**: Advanced log aggregation and shipping to Loki
+### Metrics Collection Services
+- **Node Exporter**: Host system metrics collection (CPU, memory, disk, network)
+- **cAdvisor**: Docker container metrics collection (resource usage, performance)
+- **Grafana Alloy**: Log collection and processing agent
 - **Loki**: Log aggregation system with efficient storage and querying
 
-> **Architecture Simplification**: This monitoring stack now uses **Grafana Alloy as a unified observability agent**, replacing the previous separate components (node-exporter, cAdvisor, and Promtail) with a single, more efficient solution.
+> **Architecture Note**: This monitoring stack uses **Docker-based metrics exporters** (node-exporter and cAdvisor) alongside **Grafana Alloy for log collection**, providing a robust and flexible monitoring solution.
 
 ### Optional Services (Configurable)
 - **Blackbox Exporter**: HTTP/HTTPS, TCP, ICMP, and DNS probe monitoring
@@ -142,25 +141,31 @@ This monitoring stack uses a **unified Docker Compose configuration** that works
 > **Note**: Grafana credentials can be customized by setting `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD` environment variables in your `.env` file before starting the services.
    - **Grafana Alloy**: http://localhost:12345/metrics
 
-## Unified Observability with Grafana Alloy
+## Monitoring Architecture
 
-This monitoring stack has been **completely redesigned around Grafana Alloy** as a unified observability agent, providing significant simplifications and improvements:
+This monitoring stack uses a **hybrid approach** with dedicated metrics exporters and a unified log collection agent:
 
-### Architecture Simplification
+### Architecture Overview
 
-**Previous Architecture** (Multiple Agents):
-- Node Exporter (system metrics)
-- cAdvisor (container metrics) 
-- Promtail/Alloy (log collection)
-- Multiple ports and configurations
+**Metrics Collection** (Dedicated Exporters):
+- **Node Exporter**: Specialized host system metrics collection
+  - CPU, memory, disk, network metrics
+  - Process and filesystem monitoring
+  - System load and performance indicators
+- **cAdvisor**: Specialized Docker container metrics
+  - Container resource usage (CPU, memory, I/O)
+  - Container performance and health metrics
+  - Network and storage statistics per container
 
-**Current Architecture** (Unified Agent):
-- **Grafana Alloy**: Single agent handling all observability data
-  - System metrics collection (replaces node-exporter)
-  - Container metrics collection (replaces cAdvisor)
-  - Log collection and processing
-  - Unified configuration and management
-- **Blackbox Exporter**: Dedicated probe monitoring
+**Log Collection** (Unified Agent):
+- **Grafana Alloy**: Advanced log collection and processing
+  - System logs (journald and file-based)
+  - Container logs with metadata enrichment
+  - Log parsing and structured data extraction
+  - Efficient shipping to Loki
+
+**Probe Monitoring**:
+- **Blackbox Exporter**: External service monitoring
   - HTTP/HTTPS endpoint monitoring
   - TCP connection testing
   - ICMP/Ping checks
@@ -207,23 +212,23 @@ Blackbox exporter provides comprehensive probe-based monitoring:
    - `probe_http_ssl_earliest_cert_expiry`: SSL certificate expiry
    - `probe_dns_lookup_time_seconds`: DNS resolution time
 
-### Benefits of Unified Approach
+### Benefits of Hybrid Architecture
 
-- **Simplified Deployment**: Single `compose.yaml` file instead of platform-specific configurations
-- **Reduced Resource Usage**: One agent instead of multiple specialized collectors
-- **Unified Configuration**: Single Alloy configuration file for all observability data
-- **Better Performance**: Optimized data collection and processing pipeline
-- **Future-Proof**: Built on Grafana's next-generation observability platform
+- **Specialized Collection**: Each component optimized for its specific task
+- **Reliable Metrics**: Dedicated exporters ensure consistent metrics collection
+- **Flexible Configuration**: Independent configuration for metrics and logs
+- **Better Performance**: Optimized data collection for each data type
+- **Production Proven**: Using industry-standard exporters with extensive community support
 
 ### Current Configuration Capabilities
 
-The Alloy configuration provides comprehensive observability coverage:
+The monitoring stack provides comprehensive observability coverage:
 
-- **System Metrics**: CPU, memory, disk, network metrics (via `prometheus.exporter.unix`)
-- **Container Metrics**: Docker container resource usage (via `prometheus.exporter.cadvisor`)
-- **System Logs**: Journal logs and file-based log collection
-- **Container Logs**: Docker container log collection with parsing
-- **Unified Export**: Both metrics and logs sent to appropriate destinations
+- **System Metrics**: CPU, memory, disk, network metrics (via Node Exporter)
+- **Container Metrics**: Docker container resource usage (via cAdvisor)
+- **System Logs**: Journal logs and file-based log collection (via Alloy)
+- **Container Logs**: Docker container log collection with parsing (via Alloy)
+- **Probe Monitoring**: External service availability and performance (via Blackbox Exporter)
 
 ### Manual Setup (Alternative)
 
@@ -1483,11 +1488,16 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 *Last updated: August 30, 2025*  
 *Version: 3.0 - Unified Alloy-Based Observability Stack*
 
-### Recent Updates (v3.0)
+### Recent Updates (v3.1)
+- **Hybrid Architecture**: Docker-based metrics exporters (node-exporter, cadvisor) with Alloy for log collection
+- **Optimized Performance**: Specialized exporters for reliable metrics collection
+- **Enhanced Monitoring**: Dedicated exporters ensure comprehensive system and container metrics
+- **Updated Scripts**: Modified setup.sh and stop.sh to handle Docker-based exporters
+- **Improved Documentation**: Updated to reflect the hybrid monitoring approach
+- **Production Ready**: Using industry-standard exporters with extensive community support
+
+### Previous Updates (v3.0)
 - **Complete Architecture Redesign**: Unified Grafana Alloy agent replaces multiple specialized collectors
 - **Simplified Deployment**: Single `compose.yaml` file for all platforms instead of platform-specific configurations
-- **Unified Metrics Collection**: Alloy now handles system metrics (replaces node-exporter) and container metrics (replaces cAdvisor)
 - **Enhanced Log Processing**: Advanced log collection and processing capabilities through Alloy
 - **Streamlined Scripts**: Simplified setup, stop, and update scripts reflecting the unified architecture
-- **Reduced Resource Usage**: Single agent approach reduces overall system resource consumption
-- **Future-Proof Foundation**: Built on Grafana's next-generation observability platform

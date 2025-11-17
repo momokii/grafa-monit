@@ -44,7 +44,7 @@ stop_services() {
     cd "$COMPOSE_DIR"
     
     # Stop services in reverse dependency order
-    local services=("alloy" "loki" "grafana" "blackbox_exporter" "alertmanager" "prometheus")
+    local services=("alloy" "loki" "grafana" "blackbox_exporter" "alertmanager" "prometheus" "cadvisor" "node-exporter")
     
     for service in "${services[@]}"; do
         if docker compose ps -q "$service" &>/dev/null && [ -n "$(docker compose ps -q "$service")" ]; then
@@ -92,16 +92,6 @@ remove_volumes() {
 # Function to remove networks
 remove_networks() {
     print_info "Removing custom networks..."
-    
-    # Add blackbox_exporter image
-    local images=(
-        "prom/prometheus:v2.47.0"
-        "grafana/grafana:12.1.1"
-        "prom/alertmanager:v0.28.1"
-        "grafana/loki:3.3.2"
-        "grafana/alloy:v1.9.1"
-        "prom/blackbox-exporter:v0.24.0"
-    )
 
     # Remove monitoring network if it exists and no containers are using it
     if docker network ls --format "{{.Name}}" | grep -q "^monitoring-network$"; then
@@ -120,11 +110,14 @@ remove_images() {
     print_info "Removing Docker images..."
     
     local images=(
+        "prom/node-exporter:v1.6.1"
+        "zcube/cadvisor:latest"
         "prom/prometheus:v2.47.0"
         "grafana/grafana:12.1.1"
         "prom/alertmanager:v0.28.1"
         "grafana/loki:3.3.2"
         "grafana/alloy:v1.9.1"
+        "prom/blackbox-exporter:v0.27.0"
     )
     
     for image in "${images[@]}"; do
@@ -169,7 +162,7 @@ cleanup_data() {
 show_status() {
     print_info "Current container status:"
     echo
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|loki|alloy|NAMES)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(node-exporter|cadvisor|prometheus|grafana|alertmanager|loki|alloy|blackbox_exporter|NAMES)"
     echo
 }
 

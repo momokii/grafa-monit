@@ -1,6 +1,97 @@
 version: "3.7"
 
 services:
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: node-exporter
+    restart: unless-stopped
+    # network_mode: "host"           # for we can direct access metric from host, but not works on windows
+    ports:
+    - "9100:9100" 
+    pid: "host"                    # so can see all host processes
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    volumes:
+    - type: bind
+      source: /
+      target: /rootfs
+      read_only: true
+      bind:
+        propagation: rslave  # use rslave to allow the container to see changes in the host filesystem
+
+    - type: bind
+      source: /proc
+      target: /host/proc
+      read_only: true
+
+    - type: bind
+      source: /sys
+      target: /host/sys
+      read_only: true
+
+    # using below if using wsl based and setup above not works
+      # - /proc:/host/proc:ro
+      # - /sys:/host/sys:ro
+      # - /:/rootfs:ro
+
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($|/)"'
+  
+  cadvisor:
+    # image: google/cadvisor:latest
+    image: zcube/cadvisor:latest #v0.45.0 # using this if google version not works
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+        bind:
+          propagation: rslave  # use rslave to allow the container to see changes in the host filesystem
+
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+        bind:
+          propagation: rslave  
+
+      - type: bind
+        source: /var/run
+        target: /var/run
+        # read_only: true
+
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+
+      - type: bind
+        source: /dev/disk
+        target: /dev/disk
+        read_only: true
+
+      # using below if using wsl based and setup above not works
+      # - /:/rootfs:ro
+      # - /var/run:/var/run:rw
+      # - /sys:/sys:ro
+      # - /var/lib/docker/:/var/lib/docker:ro
+      # - /dev/disk/:/dev/disk:ro
+
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: prometheus
@@ -21,11 +112,15 @@ services:
       # - '--storage.tsdb.retention.size=10GB' # size threshold for data retention if needed it
       # add new setup below for connect to loki/alloy
       - --web.enable-remote-write-receiver
+
+      - '--web.enable-lifecycle'
+      - '--web.external-url=http://localhost:9090'
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
       - ./data/prometheus:/prometheus
       - ./alerts.yml:/etc/prometheus/alerts.yml:ro # alerts configuration
-
+      # Mount watch folder setup
+      - ./prometheus/targets:/etc/prometheus/targets:rw
   grafana:
     image: grafana/grafana:12.1.1
     container_name: grafana

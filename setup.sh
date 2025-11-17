@@ -268,6 +268,16 @@ start_services() {
     print_step "Starting monitoring services..."
     
     # Start services with simplified dependency order
+    print_info "Starting metrics exporters (node-exporter and cadvisor)..."
+    if docker compose -f "$COMPOSE_FILE" up -d node-exporter cadvisor; then
+        print_success "Metrics exporters started"
+    else
+        print_error "Failed to start metrics exporters"
+        exit 1
+    fi
+    
+    sleep 5
+    
     print_info "Starting core monitoring services..."
     if docker compose -f "$COMPOSE_FILE" up -d prometheus alertmanager; then
         print_success "Core monitoring services started"
@@ -312,6 +322,8 @@ wait_for_services() {
     print_step "Waiting for services to be ready..."
     
     local services=(
+        "node-exporter:9100:/metrics"
+        "cadvisor:8080:/healthz"
         "prometheus:9090:/-/healthy"
         "grafana:3000:/api/health"
         "alertmanager:9093:/-/healthy"
@@ -351,7 +363,7 @@ wait_for_services() {
 show_status() {
     print_step "Checking service status..."
     echo
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana|alertmanager|loki|alloy|blackbox_exporter|NAMES)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(node-exporter|cadvisor|prometheus|grafana|alertmanager|loki|alloy|blackbox_exporter|NAMES)"
     echo
 }
 
@@ -364,19 +376,23 @@ show_access_info() {
     print_info "  🔍 Prometheus:    http://localhost:9090"
     print_info "  🚨 Alertmanager:  http://localhost:9093"
     echo
-    print_info "Unified Monitoring Services:"
-    print_info "  � Alloy:               http://localhost:12345/metrics (logs + system metrics + container metrics)"
-    print_info "  📝 Loki:               http://localhost:3100"
-    print_info "     Blackbox Exporter:  http://localhost:9115"
+    print_info "Metrics Exporters:"
+    print_info "  🖥️  Node Exporter:    http://localhost:9100/metrics"
+    print_info "  🐳 cAdvisor:         http://localhost:8080/metrics"
+    echo
+    print_info "Log Collection & Processing:"
+    print_info "  🔄 Alloy:            http://localhost:12345/metrics"
+    print_info "  📝 Loki:             http://localhost:3100"
+    print_info "  🔍 Blackbox Exporter: http://localhost:9115"
     echo
     print_info "Optional Services (commented in compose):"
     print_info "  🐘 PostgreSQL Exporter: http://localhost:9187/metrics (if enabled)"
     print_info "  🌐 Nginx Exporter:      http://localhost:9113/metrics (if enabled)"
     echo
     print_success "Setup completed successfully!"
-    print_info "You can now start monitoring your infrastructure with unified Alloy-based collection."
+    print_info "You can now start monitoring your infrastructure with Docker-based exporters."
     echo
-    print_warning "Note: Alloy now provides unified metrics and log collection (replaces node-exporter, cadvisor, and promtail)"
+    print_info "Note: Node Exporter and cAdvisor are now running as separate Docker containers"
 }
 
 # Function to show usage
