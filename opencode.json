@@ -1,0 +1,94 @@
+{
+  "project": {
+    "name": "vm-monit",
+    "description": "Grafana Host Monitoring Stack — a complete, containerized observability solution for host systems and Docker containers, combining metrics collection (Prometheus + exporters), log aggregation (Loki + Alloy), visualization (Grafana), and alerting (AlertManager).",
+    "version": "3.1",
+    "architecture": "Hybrid — Docker-based metrics exporters (Node Exporter, cAdvisor) + Grafana Alloy for log collection",
+    "runtime": "Docker Compose v2+",
+    "services": [
+      "node-exporter (prom/node-exporter:v1.6.1) — host system metrics",
+      "cadvisor (zcube/cadvisor:latest) — Docker container metrics",
+      "prometheus (prom/prometheus:v2.47.0) — metrics storage, querying, alerting",
+      "grafana (grafana/grafana:12.1.1) — visualization with 10 pre-provisioned dashboards",
+      "alertmanager (prom/alertmanager:v0.28.1) — alert routing (null receiver)",
+      "loki (grafana/loki:3.3.2) — log aggregation with filesystem storage",
+      "alloy (grafana/alloy:v1.9.1) — log collection from journal, system files, Docker containers",
+      "blackbox_exporter (prom/blackbox-exporter:v0.27.0) — HTTP/HTTPS probe monitoring"
+    ]
+  },
+
+  "context_files": {
+    "agent_infrastructure": {
+      "description": "Complete agent infrastructure for autonomous work on this repository. Read in order when starting any session.",
+      "files": [
+        ".claude/README.md",
+        ".claude/AGENT_RULES.md",
+        ".claude/CODING_STANDARDS.md",
+        ".claude/SECURITY_STANDARDS.md",
+        ".claude/ENVIRONMENT_GUIDE.md",
+        ".claude/HOW_TO_RESUME.md"
+      ]
+    },
+    "state": {
+      "description": "Current project state, task backlog, and decision history. Update every session.",
+      "files": [
+        ".claude/state/CURRENT_STATUS.md",
+        ".claude/state/TASK_QUEUE.md",
+        ".claude/state/DECISIONS_LOG.md"
+      ]
+    },
+    "templates": {
+      "description": "Checklists for common operations: new features, new endpoints/scrape targets, testing, bug fixes.",
+      "files": [
+        ".claude/templates/new_feature.md",
+        ".claude/templates/new_endpoint.md",
+        ".claude/templates/new_test.md",
+        ".claude/templates/bug_fix.md"
+      ]
+    },
+    "settings": ".claude/settings.json",
+    "root_context": "CLAUDE.md"
+  },
+
+  "conventions": {
+    "config_files": "kebab-case.yaml/yml (e.g., loki-config.yaml, blackbox_exporter.yaml)",
+    "alloy_configs": "kebab-case.alloy (e.g., alloy-config.alloy)",
+    "shell_scripts": "descriptive-name.sh with colored output functions, argument parsing, main entry point",
+    "grafana_dashboards": "<grafana-dashboard-id>.json (e.g., 1860.json, 11076.json)",
+    "docker_images": "Always pinned to specific version tags (no :latest except cAdvisor which already uses it)",
+    "alert_names": "PascalCase (e.g., InstanceDown, HighCPULoad)",
+    "prometheus_jobs": "snake_case in quotes (e.g., 'node-exporter', 'cadvisor')",
+    "bash_variables": "UPPER_SNAKE_CASE for constants, snake_case for local variables",
+    "bash_functions": "snake_case (e.g., print_info, check_docker, start_services)"
+  },
+
+  "commands": {
+    "start": "./setup.sh",
+    "start_manual": "docker compose up -d",
+    "stop": "./stop.sh",
+    "update": "./update.sh",
+    "health_check": "./update.sh --verify",
+    "validate_compose": "docker compose config",
+    "validate_prometheus": "promtool check config prometheus.yaml",
+    "validate_alerts": "promtool check rules alerts.yml",
+    "backup": "./scripts/backup.sh",
+    "restore": "./scripts/restore.sh list",
+    "maintenance": "./scripts/maintenance.sh"
+  },
+
+  "ports": {
+    "grafana": 3000,
+    "prometheus": 9090,
+    "alertmanager": 9093,
+    "loki": 3100,
+    "alloy": 12345,
+    "node_exporter": 9100,
+    "cadvisor": 8080,
+    "blackbox_exporter": 9115
+  },
+
+  "security_posture": "YELLOW",
+  "security_summary": "No hardcoded secrets. .env gitignored. Default Grafana credentials (admin/admin). AlertManager null receiver. No TLS. No auth on Prometheus/Loki/AlertManager. cAdvisor image unpinned.",
+
+  "task_queue_summary": "9 tasks total: 3 high (security remediation), 3 medium (config consistency), 3 low (feature enhancement). See .claude/state/TASK_QUEUE.md for details."
+}

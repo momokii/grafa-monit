@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(**)",
+      "Bash(git:*)",
+      "Bash(docker:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker-compose:*)",
+      "Bash(curl:*)",
+      "Bash(bash:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(mkdir:*)",
+      "Bash(tar:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(date:*)",
+      "Bash(du:*)",
+      "Bash(sudo chown:*)",
+      "Bash(sudo tar:*)",
+      "Bash(sudo rm:*)",
+      "Bash(sudo chmod:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(curl:* | bash)",
+      "Bash(wget:* | bash)",
+      "Bash(chmod 777:*)"
+    ]
+  }
+}
