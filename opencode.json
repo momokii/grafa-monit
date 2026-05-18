@@ -17,6 +17,23 @@
     ]
   },
 
+  "instructions": [
+    "CLAUDE.md",
+    ".claude/README.md",
+    ".claude/AGENT_RULES.md",
+    ".claude/CODING_STANDARDS.md",
+    ".claude/SECURITY_STANDARDS.md",
+    ".claude/ENVIRONMENT_GUIDE.md",
+    ".claude/HOW_TO_RESUME.md",
+    ".claude/state/CURRENT_STATUS.md",
+    ".claude/state/TASK_QUEUE.md",
+    ".claude/state/DECISIONS_LOG.md",
+    ".claude/templates/new_feature.md",
+    ".claude/templates/new_endpoint.md",
+    ".claude/templates/new_test.md",
+    ".claude/templates/bug_fix.md"
+  ],
+
   "context_files": {
     "agent_infrastructure": {
       "description": "Complete agent infrastructure for autonomous work on this repository. Read in order when starting any session.",
