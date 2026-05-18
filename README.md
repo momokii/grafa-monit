@@ -1,30 +1,30 @@
 # Grafana Host Monitoring Stack
 
-A comprehensive monitoring and observability solution for host systems and containerized applications, featuring metrics collection, log aggregation, visualization, and alerting capabilities.
+A centralized monitoring and observability solution for host systems and containerized applications, featuring metrics collection, visualization, alerting, and optional log aggregation.
 
 ## Overview
 
-This project provides a complete containerized monitoring stack that combines metrics monitoring with centralized logging. It's designed with data retention strategies, automated backup procedures, and cross-platform compatibility to ensure reliability and efficient resource usage across different environments.
+This project provides a containerized monitoring stack designed for **centralized monitoring** — deploy this stack once as your central server, then add remote machines by running node-exporter on them. Log aggregation (Loki + Alloy) is optional and enabled via Docker Compose profiles. It includes data retention strategies, automated backup procedures, and cross-platform compatibility.
 
 ## Architecture
 
-The monitoring stack includes:
+The monitoring stack is split into core services (always running) and optional log aggregation:
 
-### Core Monitoring Services
-- **Prometheus**: Time-series database for metrics storage and querying
-- **Grafana**: Unified visualization platform for metrics and logs
+### Core Services (always running)
+- **Prometheus**: Time-series database for metrics storage, querying, and alerting
+- **Grafana**: Unified visualization platform for metrics (and logs when enabled)
 - **AlertManager**: Alert handling, routing, and notifications
-
-### Metrics Collection Services
 - **Node Exporter**: Host system metrics collection (CPU, memory, disk, network)
 - **cAdvisor**: Docker container metrics collection (resource usage, performance)
+- **Blackbox Exporter**: HTTP/HTTPS, TCP, ICMP, and DNS probe monitoring
+
+### Optional Log Aggregation (enabled with `--with-logs` or `--profile logs`)
 - **Grafana Alloy**: Log collection and processing agent
 - **Loki**: Log aggregation system with efficient storage and querying
 
-> **Architecture Note**: This monitoring stack uses **Docker-based metrics exporters** (node-exporter and cAdvisor) alongside **Grafana Alloy for log collection**, providing a robust and flexible monitoring solution.
+> **Architecture Note**: Core services provide centralized metrics monitoring. Remote VMs only need node-exporter to be monitored by this central server. Log aggregation is optional.
 
-### Optional Services (Configurable)
-- **Blackbox Exporter**: HTTP/HTTPS, TCP, ICMP, and DNS probe monitoring
+### Optional Exporters (Configurable)
 - **PostgreSQL Exporter**: Database performance monitoring
 - **Nginx Exporter**: Web server metrics and performance monitoring
 - **Redis Monitoring**: Redis datasource integration for real-time Redis metrics
@@ -102,16 +102,16 @@ grafana-host-monitoring/
 ### Prerequisites
 - Docker Engine 20.10+ and Docker Compose 2.0+
 - Bash shell (Git Bash on Windows, native on Linux/macOS)
-- 4GB+ RAM recommended (2GB minimum)
-- 20GB+ disk space (depends on retention policies and log volume)
-- Network ports 3000, 3100, 9090, 9093, 12345 available
+- 2GB+ RAM for core services (4GB+ recommended with log aggregation)
+- 10GB+ disk space (depends on retention policies)
+- Network ports available: 3000, 9090, 9093, 9100, 8080, 9115 (core) + 3100, 12345 (optional logging)
 
 ### Cross-Platform Support
 
 This monitoring stack uses a **unified Docker Compose configuration** that works across different platforms:
 
-- **Simplified Architecture**: Single `compose.yaml` file for all platforms
-- **Unified Alloy Agent**: Replaces multiple specialized agents with one efficient solution
+- **Simplified Architecture**: Single `compose.yaml` file with optional profiles
+- **Centralized Monitoring**: Monitor remote VMs by deploying only node-exporter on them
 - **Consistent Performance**: Same functionality across Linux, Windows, and macOS environments
 
 ### Quick Start
@@ -124,30 +124,66 @@ This monitoring stack uses a **unified Docker Compose configuration** that works
 
 2. **Run the setup script:**
    ```bash
-   # The script automatically configures the unified monitoring stack
+   # Core setup (metrics only — recommended)
    chmod +x setup.sh
    ./setup.sh
-   
-   # Or using bash directly
-   bash setup.sh
+
+   # Full setup with log aggregation (Loki + Alloy)
+   ./setup.sh --with-logs
+
+   # Or start manually with Docker Compose
+   docker compose up -d                    # Core services only
+   docker compose --profile logs up -d     # Include log aggregation
    ```
 
 3. **Access the interfaces:**
    - **Grafana**: http://localhost:3000 (admin/admin)
    - **Prometheus**: http://localhost:9090
    - **AlertManager**: http://localhost:9093
-   - **Loki**: http://localhost:3100
+   - **Node Exporter**: http://localhost:9100/metrics
+   - **cAdvisor**: http://localhost:8080/metrics
+   - **Blackbox Exporter**: http://localhost:9115
+   - **Loki**: http://localhost:3100 (only with `--with-logs`)
+   - **Alloy**: http://localhost:12345/metrics (only with `--with-logs`)
 
 > **Note**: Grafana credentials can be customized by setting `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD` environment variables in your `.env` file before starting the services.
-   - **Grafana Alloy**: http://localhost:12345/metrics
+
+### Adding Remote Machines (Centralized Monitoring)
+
+To monitor additional VMs from this central server:
+
+1. **On the remote VM**, run the node-exporter setup:
+   ```bash
+   cd exporter-centralized/node-exporter/
+   chmod +x setup.sh
+   ./setup.sh <VM_NAME> <ENVIRONMENT>
+   # Example: ./setup.sh web-server-01 production
+   ```
+
+2. **On the central server**, create a target file:
+   ```bash
+   cat > prometheus/targets/<vm-name>.json << EOF
+   [
+     {
+       "targets": ["<REMOTE_IP>:9100"],
+       "labels": {
+         "vm_name": "<VM_NAME>",
+         "environment": "production"
+       }
+     }
+   ]
+   EOF
+   ```
+
+3. Prometheus auto-discovers new targets every 30 seconds — no restart needed.
 
 ## Monitoring Architecture
 
-This monitoring stack uses a **hybrid approach** with dedicated metrics exporters and a unified log collection agent:
+This monitoring stack uses a **centralized approach** with dedicated metrics exporters and optional log collection:
 
 ### Architecture Overview
 
-**Metrics Collection** (Dedicated Exporters):
+**Metrics Collection** (Core — always running):
 - **Node Exporter**: Specialized host system metrics collection
   - CPU, memory, disk, network metrics
   - Process and filesystem monitoring
@@ -157,7 +193,7 @@ This monitoring stack uses a **hybrid approach** with dedicated metrics exporter
   - Container performance and health metrics
   - Network and storage statistics per container
 
-**Log Collection** (Unified Agent):
+**Log Collection** (Optional — enabled with `--with-logs`):
 - **Grafana Alloy**: Advanced log collection and processing
   - System logs (journald and file-based)
   - Container logs with metadata enrichment
@@ -212,12 +248,12 @@ Blackbox exporter provides comprehensive probe-based monitoring:
    - `probe_http_ssl_earliest_cert_expiry`: SSL certificate expiry
    - `probe_dns_lookup_time_seconds`: DNS resolution time
 
-### Benefits of Hybrid Architecture
+### Benefits of Centralized Architecture
 
-- **Specialized Collection**: Each component optimized for its specific task
+- **Centralized Monitoring**: One server monitors multiple remote VMs
 - **Reliable Metrics**: Dedicated exporters ensure consistent metrics collection
+- **Optional Logging**: Enable Loki/Alloy only when log aggregation is needed
 - **Flexible Configuration**: Independent configuration for metrics and logs
-- **Better Performance**: Optimized data collection for each data type
 - **Production Proven**: Using industry-standard exporters with extensive community support
 
 ### Current Configuration Capabilities
@@ -226,9 +262,9 @@ The monitoring stack provides comprehensive observability coverage:
 
 - **System Metrics**: CPU, memory, disk, network metrics (via Node Exporter)
 - **Container Metrics**: Docker container resource usage (via cAdvisor)
-- **System Logs**: Journal logs and file-based log collection (via Alloy)
-- **Container Logs**: Docker container log collection with parsing (via Alloy)
 - **Probe Monitoring**: External service availability and performance (via Blackbox Exporter)
+- **Remote Monitoring**: File-based service discovery for centralized VM monitoring
+- **Log Aggregation**: System and container logs (optional, via Alloy + Loki)
 
 ### Manual Setup (Alternative)
 
@@ -251,18 +287,19 @@ If you prefer manual setup or need to customize the installation:
 The stack includes three management scripts for different operations:
 
 #### Setup Script (`setup.sh`)
-- **Purpose**: Initial setup and configuration of the unified monitoring stack
-- **Features**: Directory creation, network setup, permission handling, service orchestration
-- **Usage**: 
+- **Purpose**: Initial setup and configuration of the monitoring stack
+- **Features**: Directory creation, network setup, permission handling, service orchestration, optional log aggregation
+- **Usage**:
   ```bash
-  ./setup.sh                    # Full setup with all checks
+  ./setup.sh                    # Core setup (metrics only)
+  ./setup.sh --with-logs        # Full setup including Loki + Alloy
   ./setup.sh --quick            # Quick setup for development
   ./setup.sh --skip-pull        # Setup without pulling latest images
   ```
 
 #### Stop Script (`stop.sh`)
 - **Purpose**: Service shutdown and cleanup
-- **Features**: Graceful shutdown, container removal, data preservation options
+- **Features**: Graceful shutdown, container removal, data preservation options, auto-detects optional services
 - **Usage**:
   ```bash
   ./stop.sh                     # Stop and remove containers (default)
@@ -273,23 +310,24 @@ The stack includes three management scripts for different operations:
 
 #### Update Script (`update.sh`)
 - **Purpose**: Update images and restart services
-- **Features**: Configuration validation, backup creation, rolling updates
+- **Features**: Configuration validation, backup creation, rolling updates, optional service awareness
 - **Usage**:
   ```bash
-  ./update.sh                   # Default: validate, backup, rolling restart
-  ./update.sh -f                # Full restart with validation and backup
-  ./update.sh -c                # Only reload configurations
-  ./update.sh -u                # Update images and restart services
+  ./update.sh                   # Update core services
+  ./update.sh --with-logs       # Update all services including Loki + Alloy
+  ./update.sh -r                # Rolling update (one service at a time)
+  ./update.sh --backup --verify # Update with backup and health verification
   ```
 
 ## Monitoring Capabilities
 
 ### Metrics Collection and Monitoring
 
-The stack provides comprehensive metrics monitoring through the unified Alloy agent:
+The stack provides comprehensive metrics monitoring through dedicated exporters:
 
-- **Host System Metrics**: CPU, memory, disk usage, network traffic, system load (via Alloy's unix exporter)
-- **Container Metrics**: Resource usage, performance, and health status for all running containers (via Alloy's cAdvisor exporter)
+- **Host System Metrics**: CPU, memory, disk usage, network traffic, system load (via Node Exporter)
+- **Container Metrics**: Resource usage, performance, and health status for all running containers (via cAdvisor)
+- **Remote VM Metrics**: Centralized monitoring of remote machines (via file-based service discovery)
 - **Application Metrics**: Custom application metrics via Prometheus exporters
 - **Database Metrics**: PostgreSQL performance monitoring (when enabled)
 - **Web Server Metrics**: Nginx performance and request metrics (when enabled)
@@ -1485,19 +1523,23 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 
 ---
 
-*Last updated: August 30, 2025*  
-*Version: 3.0 - Unified Alloy-Based Observability Stack*
+*Last updated: May 18, 2026*
+*Version: 4.0 - Centralized Monitoring with Optional Logging*
 
-### Recent Updates (v3.1)
+### Recent Updates (v4.0)
+- **Centralized Monitoring**: Monitor remote VMs by deploying only node-exporter on them
+- **Optional Log Aggregation**: Loki + Alloy moved behind Docker Compose profiles (`--profile logs`)
+- **File-Based Service Discovery**: Add remote targets via JSON files with 30s auto-discovery
+- **All Images Pinned**: cAdvisor pinned to v0.51.0, no more unpinned `:latest` tags
+- **Bug Fixes**: Fixed version mismatches, remote exporter script bug, profile-aware stop/update
+- **New Flags**: `--with-logs` flag on setup.sh and update.sh for optional log aggregation
+
+### Previous Updates (v3.1)
 - **Hybrid Architecture**: Docker-based metrics exporters (node-exporter, cadvisor) with Alloy for log collection
 - **Optimized Performance**: Specialized exporters for reliable metrics collection
-- **Enhanced Monitoring**: Dedicated exporters ensure comprehensive system and container metrics
 - **Updated Scripts**: Modified setup.sh and stop.sh to handle Docker-based exporters
-- **Improved Documentation**: Updated to reflect the hybrid monitoring approach
-- **Production Ready**: Using industry-standard exporters with extensive community support
 
 ### Previous Updates (v3.0)
 - **Complete Architecture Redesign**: Unified Grafana Alloy agent replaces multiple specialized collectors
 - **Simplified Deployment**: Single `compose.yaml` file for all platforms instead of platform-specific configurations
 - **Enhanced Log Processing**: Advanced log collection and processing capabilities through Alloy
-- **Streamlined Scripts**: Simplified setup, stop, and update scripts reflecting the unified architecture
