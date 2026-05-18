@@ -43,13 +43,25 @@ stop_services() {
     
     cd "$COMPOSE_DIR"
     
-    # Stop services in reverse dependency order
-    local services=("alloy" "loki" "grafana" "blackbox_exporter" "alertmanager" "prometheus" "cadvisor" "node-exporter")
-    
+    # Stop services in reverse dependency order (core services first, then optional)
+    local services=("grafana" "blackbox_exporter" "alertmanager" "prometheus" "cadvisor" "node-exporter")
+
+    # Check if optional services (loki/alloy) are running and add them
+    # Must use --profile logs to detect profile-gated services
+    for svc in alloy loki; do
+        if docker compose --profile logs ps -q "$svc" &>/dev/null && [ -n "$(docker compose --profile logs ps -q "$svc")" ]; then
+            services+=("$svc")
+        fi
+    done
+
     for service in "${services[@]}"; do
-        if docker compose ps -q "$service" &>/dev/null && [ -n "$(docker compose ps -q "$service")" ]; then
+        local profile_flag=""
+        if [ "$service" = "loki" ] || [ "$service" = "alloy" ]; then
+            profile_flag="--profile logs"
+        fi
+        if docker compose $profile_flag ps -q "$service" &>/dev/null && [ -n "$(docker compose $profile_flag ps -q "$service")" ]; then
             print_info "Stopping $service..."
-            docker compose stop "$service"
+            docker compose $profile_flag stop "$service"
         else
             print_warning "$service is not running"
         fi
@@ -111,7 +123,7 @@ remove_images() {
     
     local images=(
         "prom/node-exporter:v1.6.1"
-        "zcube/cadvisor:latest"
+        "zcube/cadvisor:v0.51.0"
         "prom/prometheus:v2.47.0"
         "grafana/grafana:12.1.1"
         "prom/alertmanager:v0.28.1"

@@ -31,6 +31,9 @@ print_step() {
     echo -e "${PURPLE}[STEP]${NC} $1"
 }
 
+# Global flags
+WITH_LOGS=false
+
 # Function to detect OS and set compose directory
 detect_os_and_set_compose_dir() {
     # Simplified since we now use a single compose.yaml file
@@ -47,46 +50,47 @@ detect_os_and_set_compose_dir() {
 # Function to check if Docker is running
 check_docker() {
     print_step "Checking Docker installation and status..."
-    
+
     if ! command -v docker &> /dev/null; then
         print_error "Docker is not installed. Please install Docker first."
         exit 1
     fi
-    
+
     if ! docker info &> /dev/null; then
         print_error "Docker is not running. Please start Docker first."
         exit 1
     fi
-    
+
     if ! command -v docker compose &> /dev/null && ! command -v docker-compose &> /dev/null; then
         print_error "Docker Compose is not installed. Please install Docker Compose first."
         exit 1
     fi
-    
+
     print_success "Docker and Docker Compose are available"
 }
 
 # Function to create required directories
 create_directories() {
     print_step "Creating required directories..."
-    
-    # Create data directories with specific structure
-    mkdir -p data/{prometheus,grafana,loki,alloy_data}
+
+    # Create core data directories
+    mkdir -p data/{prometheus,grafana}
     mkdir -p logs/{prometheus,grafana,alertmanager}
-    
+
+    # Create targets directory for centralized monitoring
+    mkdir -p prometheus/targets
+
     # Additional directories for completeness
     local additional_directories=(
         "logs/nginx"
         "logs/api"
         "logs/app"
         "backups"
-        "loki"
-        "alloy"
         "grafana/provisioning/datasources"
         "grafana/provisioning/dashboards"
         "grafana/provisioning/notifiers"
     )
-    
+
     for dir in "${additional_directories[@]}"; do
         if [ ! -d "$dir" ]; then
             mkdir -p "$dir"
@@ -95,49 +99,82 @@ create_directories() {
             print_info "Directory already exists: $dir"
         fi
     done
-    
+
+    # Create log-related directories only when logs profile is active
+    if [ "$WITH_LOGS" = true ]; then
+        mkdir -p data/{loki,alloy_data}
+        mkdir -p loki alloy
+        print_info "Created log aggregation directories (Loki + Alloy)"
+    fi
+
     print_success "All required directories created"
+}
+
+# Function to create example target file for centralized monitoring
+create_example_target() {
+    local targets_dir="prometheus/targets"
+    local example_file="$targets_dir/_example.json"
+
+    if [ ! -f "$example_file" ]; then
+        cat > "$example_file" << 'EOF'
+[
+  {
+    "targets": [
+      "PLACEHOLDER_IP:9100"
+    ],
+    "labels": {
+      "vm_name": "example-vm-name",
+      "environment": "production",
+      "_comment": "Copy this file and replace PLACEHOLDER_IP with your remote VM IP. Prometheus auto-discovers changes every 30s."
+    }
+  }
+]
+EOF
+        print_info "Created example target file: $example_file"
+    fi
 }
 
 # Function to set proper permissions
 set_permissions() {
     print_step "Setting proper permissions..."
-    
-    # Create directories if they don't exist (using your exact structure)
-    mkdir -p data/{prometheus,grafana,loki,alloy_data}
-    mkdir -p logs/{prometheus,grafana,alertmanager}
-    
+
+    # Create directories if they don't exist
+    mkdir -p data/{prometheus,grafana}
+
     # Set correct ownership for each service
     print_info "Setting container-specific ownership..."
-    
+
     # Prometheus user (65534:65534)
     if sudo chown -R 65534:65534 data/prometheus 2>/dev/null; then
         print_success "Set Prometheus permissions (65534:65534)"
     else
         print_warning "Could not set Prometheus permissions - you may need to run manually: sudo chown -R 65534:65534 data/prometheus"
     fi
-    
+
     # Grafana user (472:472)
     if sudo chown -R 472:472 data/grafana 2>/dev/null; then
         print_success "Set Grafana permissions (472:472)"
     else
         print_warning "Could not set Grafana permissions - you may need to run manually: sudo chown -R 472:472 data/grafana"
     fi
-    
-    # Loki user (10001:10001)
-    if sudo chown -R 10001:10001 data/loki 2>/dev/null; then
-        print_success "Set Loki permissions (10001:10001)"
-    else
-        print_warning "Could not set Loki permissions - you may need to run manually: sudo chown -R 10001:10001 data/loki"
+
+    # Loki and Alloy permissions (only when logs profile is active)
+    if [ "$WITH_LOGS" = true ]; then
+        mkdir -p data/{loki,alloy_data}
+
+        if sudo chown -R 10001:10001 data/loki 2>/dev/null; then
+            print_success "Set Loki permissions (10001:10001)"
+        else
+            print_warning "Could not set Loki permissions - you may need to run manually: sudo chown -R 10001:10001 data/loki"
+        fi
+
+        if sudo chown -R 0:0 data/alloy_data 2>/dev/null; then
+            print_success "Set Alloy permissions (0:0)"
+        else
+            print_warning "Could not set Alloy permissions - you may need to run manually: sudo chown -R 0:0 data/alloy_data"
+        fi
     fi
-    
-    # Alloy (root - 0:0)
-    if sudo chown -R 0:0 data/alloy_data 2>/dev/null; then
-        print_success "Set Alloy permissions (0:0)"
-    else
-        print_warning "Could not set Alloy permissions - you may need to run manually: sudo chown -R 0:0 data/alloy_data"
-    fi
-    
+
     # Set proper permissions on directories
     print_info "Setting directory permissions..."
     if sudo chmod -R 755 data/ 2>/dev/null; then
@@ -145,13 +182,13 @@ set_permissions() {
     else
         print_warning "Could not set data directory permissions"
     fi
-    
+
     if sudo chmod -R 755 logs/ 2>/dev/null; then
         print_success "Set logs directory permissions (755)"
     else
         print_warning "Could not set logs directory permissions"
     fi
-    
+
     # Verify permissions
     print_info "Verifying permissions..."
     echo
@@ -161,26 +198,32 @@ set_permissions() {
     print_info "Log directories:"
     ls -la logs/
     echo
-    
+
     print_success "Permissions configuration completed"
 }
 
 # Function to check configuration files
 check_config_files() {
     print_step "Checking configuration files..."
-    
+
     local config_files=(
         "prometheus.yaml:Prometheus configuration"
         "alerts.yml:Alertmanager rules"
         "alertmanager.yml:Alertmanager configuration"
-        "loki/loki-config.yaml:Loki configuration"
-        "alloy/alloy-config.alloy:Alloy configuration"
         "blackbox_exporter/blackbox_exporter.yaml:Blackbox Exporter configuration"
         "grafana/provisioning/datasources/datasource.yml:Grafana datasource configuration"
     )
-    
+
+    # Only check loki/alloy configs when logs profile is active
+    if [ "$WITH_LOGS" = true ]; then
+        config_files+=(
+            "loki/loki-config.yaml:Loki configuration"
+            "alloy/alloy-config.alloy:Alloy configuration"
+        )
+    fi
+
     local missing_files=()
-    
+
     for config in "${config_files[@]}"; do
         IFS=':' read -r file description <<< "$config"
         if [ ! -f "$file" ]; then
@@ -189,7 +232,7 @@ check_config_files() {
             print_info "Found: $file"
         fi
     done
-    
+
     if [ ${#missing_files[@]} -gt 0 ]; then
         print_warning "Missing configuration files:"
         for file in "${missing_files[@]}"; do
@@ -204,7 +247,7 @@ check_config_files() {
 # Function to validate configuration files
 validate_configs() {
     print_step "Validating configuration files..."
-    
+
     # Validate prometheus.yaml if promtool is available
     if command -v promtool &> /dev/null && [ -f "prometheus.yaml" ]; then
         print_info "Validating Prometheus configuration..."
@@ -217,26 +260,23 @@ validate_configs() {
     else
         print_warning "promtool not found, skipping Prometheus config validation"
     fi
-    
-    # Check if Loki config file exists and is readable
-    if [ -f "loki/loki-config.yaml" ]; then
-        print_info "Loki configuration file found"
-    else
-        print_warning "Loki configuration file not found: loki/loki-config.yaml"
-    fi
-    
-    # Check if Alloy config file exists and is readable
-    if [ -f "alloy/alloy-config.alloy" ]; then
-        print_info "Alloy configuration file found"
-    else
-        print_warning "Alloy configuration file not found: alloy/alloy-config.alloy"
+
+    # Validate alert rules if promtool is available
+    if command -v promtool &> /dev/null && [ -f "alerts.yml" ]; then
+        print_info "Validating alert rules..."
+        if promtool check rules alerts.yml; then
+            print_success "Alert rules are valid"
+        else
+            print_error "Alert rules validation failed!"
+            exit 1
+        fi
     fi
 }
 
 # Function to create external networks
 create_networks() {
     print_step "Creating Docker networks..."
-    
+
     # Create monitoring network if it doesn't exist
     if ! docker network ls --format "{{.Name}}" | grep -q "^monitoring-network$"; then
         print_info "Creating monitoring-network..."
@@ -251,11 +291,37 @@ create_networks() {
     fi
 }
 
+# Function to toggle Loki datasource based on logs profile
+toggle_loki_datasource() {
+    local ds_dir="grafana/provisioning/datasources"
+    local loki_ds="$ds_dir/datasource-loki.yml"
+    local loki_ds_disabled="$ds_dir/datasource-loki.yml.disabled"
+
+    if [ "$WITH_LOGS" = true ]; then
+        if [ -f "$loki_ds_disabled" ]; then
+            mv "$loki_ds_disabled" "$loki_ds"
+            print_info "Enabled Loki datasource"
+        elif [ -f "$loki_ds" ]; then
+            print_info "Loki datasource already enabled"
+        fi
+    else
+        if [ -f "$loki_ds" ]; then
+            mv "$loki_ds" "$loki_ds_disabled"
+            print_info "Disabled Loki datasource (not needed without --with-logs)"
+        fi
+    fi
+}
+
 # Function to pull Docker images
 pull_images() {
     print_step "Pulling latest Docker images..."
-    
-    if docker compose -f "$COMPOSE_FILE" pull; then
+
+    local compose_cmd="docker compose -f $COMPOSE_FILE"
+    if [ "$WITH_LOGS" = true ]; then
+        compose_cmd="$compose_cmd --profile logs"
+    fi
+
+    if $compose_cmd pull; then
         print_success "All images pulled successfully"
     else
         print_error "Failed to pull some images"
@@ -266,8 +332,8 @@ pull_images() {
 # Function to start services
 start_services() {
     print_step "Starting monitoring services..."
-    
-    # Start services with simplified dependency order
+
+    # Start metrics exporters (node-exporter and cadvisor)
     print_info "Starting metrics exporters (node-exporter and cadvisor)..."
     if docker compose -f "$COMPOSE_FILE" up -d node-exporter cadvisor; then
         print_success "Metrics exporters started"
@@ -275,9 +341,10 @@ start_services() {
         print_error "Failed to start metrics exporters"
         exit 1
     fi
-    
+
     sleep 5
-    
+
+    # Start core monitoring services
     print_info "Starting core monitoring services..."
     if docker compose -f "$COMPOSE_FILE" up -d prometheus alertmanager; then
         print_success "Core monitoring services started"
@@ -285,32 +352,38 @@ start_services() {
         print_error "Failed to start core monitoring services"
         exit 1
     fi
-    
-    sleep 5
-    
-    print_info "Starting log aggregation and metrics collection services..."
-    if docker compose -f "$COMPOSE_FILE" up -d loki alloy; then
-        print_success "Log aggregation and metrics collection services started"
-    else
-        print_error "Failed to start log aggregation and metrics collection services"
-        exit 1
-    fi
-    
+
     sleep 5
 
-    print_info "Starting Probing services..."
+    # Start probing service
+    print_info "Starting probing services..."
     if docker compose -f "$COMPOSE_FILE" up -d blackbox_exporter; then
         print_success "Probing services started"
     else
-        print_error "Failed to start Probing services"
+        print_error "Failed to start probing services"
         exit 1
     fi
 
     sleep 5
-    
+
+    # Start log aggregation (optional)
+    if [ "$WITH_LOGS" = true ]; then
+        print_info "Starting log aggregation services (Loki + Alloy)..."
+        if docker compose --profile logs -f "$COMPOSE_FILE" up -d loki alloy; then
+            print_success "Log aggregation services started"
+        else
+            print_error "Failed to start log aggregation services"
+            exit 1
+        fi
+        sleep 5
+    else
+        print_info "Skipping log aggregation (use --with-logs to enable Loki + Alloy)"
+    fi
+
+    # Start visualization (always last)
     print_info "Starting visualization services..."
     if docker compose -f "$COMPOSE_FILE" up -d grafana; then
-        print_success "All monitoring services started"
+        print_success "Visualization services started"
     else
         print_error "Failed to start visualization services"
         exit 1
@@ -320,41 +393,46 @@ start_services() {
 # Function to wait for services to be ready
 wait_for_services() {
     print_step "Waiting for services to be ready..."
-    
+
     local services=(
         "node-exporter:9100:/metrics"
         "cadvisor:8080:/healthz"
         "prometheus:9090:/-/healthy"
         "grafana:3000:/api/health"
         "alertmanager:9093:/-/healthy"
-        "loki:3100:/ready"
-        "alloy:12345:/metrics"
         "blackbox_exporter:9115/-/healthy"
     )
-    
+
+    if [ "$WITH_LOGS" = true ]; then
+        services+=(
+            "loki:3100:/ready"
+            "alloy:12345:/metrics"
+        )
+    fi
+
     local max_wait=180 # 3 minutes
     local wait_time=0
-    
+
     for service_info in "${services[@]}"; do
         IFS=':' read -r service port endpoint <<< "$service_info"
-        
+
         print_info "Waiting for $service to be ready..."
-        
+
         while [ $wait_time -lt $max_wait ]; do
             if curl -f -s "http://localhost:$port$endpoint" &>/dev/null; then
                 print_success "$service is ready"
                 break
             fi
-            
+
             sleep 5
             wait_time=$((wait_time + 5))
-            
+
             if [ $wait_time -ge $max_wait ]; then
                 print_warning "$service is taking longer than expected to be ready"
                 break
             fi
         done
-        
+
         wait_time=0
     done
 }
@@ -372,27 +450,33 @@ show_access_info() {
     print_step "Service Access Information"
     echo
     print_info "Core Services:"
-    print_info "  📊 Grafana:       http://localhost:3000 (admin/admin)"
-    print_info "  🔍 Prometheus:    http://localhost:9090"
-    print_info "  🚨 Alertmanager:  http://localhost:9093"
+    print_info "  Grafana:       http://localhost:3000 (admin/admin)"
+    print_info "  Prometheus:    http://localhost:9090"
+    print_info "  Alertmanager:  http://localhost:9093"
     echo
     print_info "Metrics Exporters:"
-    print_info "  🖥️  Node Exporter:    http://localhost:9100/metrics"
-    print_info "  🐳 cAdvisor:         http://localhost:8080/metrics"
+    print_info "  Node Exporter:    http://localhost:9100/metrics"
+    print_info "  cAdvisor:         http://localhost:8080/metrics"
+    print_info "  Blackbox Exporter: http://localhost:9115"
     echo
-    print_info "Log Collection & Processing:"
-    print_info "  🔄 Alloy:            http://localhost:12345/metrics"
-    print_info "  📝 Loki:             http://localhost:3100"
-    print_info "  🔍 Blackbox Exporter: http://localhost:9115"
+
+    if [ "$WITH_LOGS" = true ]; then
+        print_info "Log Collection & Processing:"
+        print_info "  Alloy:            http://localhost:12345/metrics"
+        print_info "  Loki:             http://localhost:3100"
+        echo
+    fi
+
+    print_info "Centralized Monitoring:"
+    print_info "  Add remote VMs by creating JSON files in prometheus/targets/"
+    print_info "  See prometheus/targets/_example.json for the expected format"
     echo
+
     print_info "Optional Services (commented in compose):"
-    print_info "  🐘 PostgreSQL Exporter: http://localhost:9187/metrics (if enabled)"
-    print_info "  🌐 Nginx Exporter:      http://localhost:9113/metrics (if enabled)"
+    print_info "  PostgreSQL Exporter: http://localhost:9187/metrics (if enabled)"
+    print_info "  Nginx Exporter:      http://localhost:9113/metrics (if enabled)"
     echo
     print_success "Setup completed successfully!"
-    print_info "You can now start monitoring your infrastructure with Docker-based exporters."
-    echo
-    print_info "Note: Node Exporter and cAdvisor are now running as separate Docker containers"
 }
 
 # Function to show usage
@@ -401,13 +485,15 @@ show_usage() {
     echo
     echo "Options:"
     echo "  -h, --help           Show this help message"
+    echo "  --with-logs          Enable log aggregation (Loki + Alloy)"
     echo "  --skip-pull          Skip pulling latest Docker images"
     echo "  --skip-validation    Skip configuration validation"
     echo "  --skip-permissions   Skip setting directory permissions"
     echo "  --quick              Quick setup (skip pull, validation, and wait)"
     echo
     echo "Examples:"
-    echo "  $0                   # Full setup with all checks"
+    echo "  $0                   # Core setup (metrics only, no logging)"
+    echo "  $0 --with-logs       # Full setup with Loki + Alloy log aggregation"
     echo "  $0 --quick           # Quick setup for development"
     echo "  $0 --skip-pull       # Setup without pulling latest images"
 }
@@ -418,13 +504,17 @@ main() {
     local skip_validation=false
     local skip_permissions=false
     local quick_setup=false
-    
+
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
                 show_usage
                 exit 0
+                ;;
+            --with-logs)
+                WITH_LOGS=true
+                shift
                 ;;
             --skip-pull)
                 skip_pull=true
@@ -451,56 +541,70 @@ main() {
                 ;;
         esac
     done
-    
+
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}    Grafana Host Monitoring Setup Script${NC}"
-    echo -e "${CYAN}    Unified Alloy-Based Observability Stack${NC}"
+    echo -e "${CYAN}    Centralized Observability Stack v4.0${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
+
+    if [ "$WITH_LOGS" = true ]; then
+        print_info "Mode: Full (core + log aggregation)"
+    else
+        print_info "Mode: Core only (metrics monitoring)"
+        print_info "Use --with-logs to enable Loki + Alloy log aggregation"
+    fi
+    echo
+
     # Detect OS and set compose directory
     detect_os_and_set_compose_dir
     print_info "Using unified compose configuration: ./compose.yaml"
     echo
-    
+
     # Check Docker
     check_docker
-    
+
     # Create directories
     create_directories
-    
+
+    # Create example target file for centralized monitoring
+    create_example_target
+
     # Set permissions
     if [ "$skip_permissions" = false ]; then
         set_permissions
     fi
-    
+
+    # Toggle Loki datasource
+    toggle_loki_datasource
+
     # Check configuration files
     check_config_files
-    
+
     # Validate configurations
     if [ "$skip_validation" = false ]; then
         validate_configs
     fi
-    
+
     # Create networks
     create_networks
-    
+
     # Pull images
     if [ "$skip_pull" = false ]; then
         pull_images
     fi
-    
+
     # Start services
     start_services
-    
+
     # Wait for services (skip in quick mode)
     if [ "$quick_setup" = false ]; then
         wait_for_services
     fi
-    
+
     # Show status
     show_status
-    
+
     # Show access information
     show_access_info
 }

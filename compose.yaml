@@ -46,7 +46,7 @@ services:
   
   cadvisor:
     # image: google/cadvisor:latest
-    image: zcube/cadvisor:latest #v0.45.0 # using this if google version not works
+    image: zcube/cadvisor:v0.51.0 # using this if google version not works
     container_name: cadvisor
     restart: unless-stopped
     ports:
@@ -176,6 +176,8 @@ services:
   loki:
     image: grafana/loki:3.3.2
     container_name: loki
+    profiles:
+      - logs
     restart: unless-stopped
     ports:
       - "3100:3100"
@@ -197,6 +199,8 @@ services:
   alloy:
     image: grafana/alloy:v1.9.1
     container_name: alloy
+    profiles:
+      - logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "alloy", "-version"]

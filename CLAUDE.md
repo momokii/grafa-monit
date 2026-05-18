@@ -7,12 +7,14 @@
 
 ## Project: Grafana Host Monitoring Stack (vm-monit)
 
-A complete, containerized observability solution for host systems and Docker containers.
-Combines metrics (Prometheus + exporters), logs (Loki + Alloy), visualization (Grafana), and alerting (AlertManager).
+A centralized, containerized observability solution for host systems and Docker containers.
+Core stack provides metrics (Prometheus + exporters), visualization (Grafana), and alerting (AlertManager).
+Log aggregation (Loki + Alloy) is optional via Docker Compose profiles.
 
-**Version:** 3.1 — Hybrid Architecture
+**Version:** 4.0 — Centralized Monitoring with Optional Logging
 **Runtime:** Docker Compose v2+
-**Services:** 8 (node-exporter, cadvisor, prometheus, grafana, alertmanager, loki, alloy, blackbox_exporter)
+**Core Services:** 6 (node-exporter, cadvisor, prometheus, grafana, alertmanager, blackbox_exporter)
+**Optional Services:** 2 (loki, alloy) — enabled with `--profile logs` or `--with-logs`
 
 ---
 
@@ -63,10 +65,22 @@ See **`.claude/settings.json`** for allowed and denied commands. Key allowances:
 
 ### Start / Stop / Update
 ```bash
-./setup.sh              # Full setup (first time)
-docker compose up -d    # Start services
-./stop.sh               # Stop services
-./update.sh --verify    # Update and health check
+./setup.sh                      # Core setup (metrics only)
+./setup.sh --with-logs          # Full setup including Loki + Alloy
+docker compose up -d            # Start core services only
+docker compose --profile logs up -d  # Start all services including logging
+./stop.sh                       # Stop services
+./update.sh --verify            # Update and health check
+./update.sh --with-logs --verify # Update all including logging
+```
+
+### Centralized Monitoring (Remote VMs)
+```bash
+# On remote VM:
+./exporter-centralized/node-exporter/setup.sh <VM_NAME> <ENVIRONMENT>
+
+# On central server: create prometheus/targets/<vm-name>.json
+# Prometheus auto-discovers new targets every 30s
 ```
 
 ### Validate Config
@@ -81,20 +95,20 @@ promtool check rules alerts.yml
 curl -f http://localhost:9090/-/healthy    # Prometheus
 curl -f http://localhost:3000/api/health   # Grafana
 curl -f http://localhost:9093/-/healthy    # AlertManager
-curl -f http://localhost:3100/ready        # Loki
+curl -f http://localhost:3100/ready        # Loki (optional)
 ```
 
 ### Service Ports
-| Service | Port | Auth |
-|---|---|---|
-| Grafana | 3000 | Basic (admin/admin default) |
-| Prometheus | 9090 | None |
-| AlertManager | 9093 | None |
-| Loki | 3100 | None |
-| Alloy | 12345 | None |
-| Node Exporter | 9100 | None |
-| cAdvisor | 8080 | None |
-| Blackbox Exporter | 9115 | None |
+| Service | Port | Auth | Mode |
+|---|---|---|---|
+| Grafana | 3000 | Basic (admin/admin default) | Core |
+| Prometheus | 9090 | None | Core |
+| AlertManager | 9093 | None | Core |
+| Node Exporter | 9100 | None | Core |
+| cAdvisor | 8080 | None | Core |
+| Blackbox Exporter | 9115 | None | Core |
+| Loki | 3100 | None | Optional (`--profile logs`) |
+| Alloy | 12345 | None | Optional (`--profile logs`) |
 
 ---
 
@@ -105,6 +119,6 @@ curl -f http://localhost:3100/ready        # Loki
 - Default Grafana credentials (YELLOW — change via .env)
 - AlertManager null receiver (YELLOW — no notifications)
 - No TLS, no auth on most services (YELLOW)
-- cAdvisor image unpinned (YELLOW)
+- cAdvisor image pinned to v0.51.0 (GREEN — was previously unpinned)
 
 See `.claude/SECURITY_STANDARDS.md` for full audit and remediation tasks.

@@ -1,19 +1,19 @@
 {
   "project": {
     "name": "vm-monit",
-    "description": "Grafana Host Monitoring Stack — a complete, containerized observability solution for host systems and Docker containers, combining metrics collection (Prometheus + exporters), log aggregation (Loki + Alloy), visualization (Grafana), and alerting (AlertManager).",
-    "version": "3.1",
-    "architecture": "Hybrid — Docker-based metrics exporters (Node Exporter, cAdvisor) + Grafana Alloy for log collection",
+    "description": "Grafana Host Monitoring Stack — a centralized, containerized observability solution for host systems and Docker containers, combining metrics collection (Prometheus + exporters), optional log aggregation (Loki + Alloy), visualization (Grafana), and alerting (AlertManager).",
+    "version": "4.0",
+    "architecture": "Centralized monitoring — Core metrics (Node Exporter, cAdvisor, Prometheus, Grafana, AlertManager, Blackbox) + optional logging profile (Loki, Alloy)",
     "runtime": "Docker Compose v2+",
     "services": [
-      "node-exporter (prom/node-exporter:v1.6.1) — host system metrics",
-      "cadvisor (zcube/cadvisor:latest) — Docker container metrics",
-      "prometheus (prom/prometheus:v2.47.0) — metrics storage, querying, alerting",
-      "grafana (grafana/grafana:12.1.1) — visualization with 10 pre-provisioned dashboards",
-      "alertmanager (prom/alertmanager:v0.28.1) — alert routing (null receiver)",
-      "loki (grafana/loki:3.3.2) — log aggregation with filesystem storage",
-      "alloy (grafana/alloy:v1.9.1) — log collection from journal, system files, Docker containers",
-      "blackbox_exporter (prom/blackbox-exporter:v0.27.0) — HTTP/HTTPS probe monitoring"
+      "node-exporter (prom/node-exporter:v1.6.1) — host system metrics [core]",
+      "cadvisor (zcube/cadvisor:v0.51.0) — Docker container metrics [core]",
+      "prometheus (prom/prometheus:v2.47.0) — metrics storage, querying, alerting [core]",
+      "grafana (grafana/grafana:12.1.1) — visualization with pre-provisioned dashboards [core]",
+      "alertmanager (prom/alertmanager:v0.28.1) — alert routing (null receiver) [core]",
+      "blackbox_exporter (prom/blackbox-exporter:v0.27.0) — HTTP/HTTPS probe monitoring [core]",
+      "loki (grafana/loki:3.3.2) — log aggregation with filesystem storage [optional: --profile logs]",
+      "alloy (grafana/alloy:v1.9.1) — log collection from journal, system files, Docker containers [optional: --profile logs]"
     ]
   },
 
@@ -72,7 +72,7 @@
     "alloy_configs": "kebab-case.alloy (e.g., alloy-config.alloy)",
     "shell_scripts": "descriptive-name.sh with colored output functions, argument parsing, main entry point",
     "grafana_dashboards": "<grafana-dashboard-id>.json (e.g., 1860.json, 11076.json)",
-    "docker_images": "Always pinned to specific version tags (no :latest except cAdvisor which already uses it)",
+    "docker_images": "Always pinned to specific version tags (no :latest)",
     "alert_names": "PascalCase (e.g., InstanceDown, HighCPULoad)",
     "prometheus_jobs": "snake_case in quotes (e.g., 'node-exporter', 'cadvisor')",
     "bash_variables": "UPPER_SNAKE_CASE for constants, snake_case for local variables",
@@ -81,7 +81,9 @@
 
   "commands": {
     "start": "./setup.sh",
+    "start_with_logs": "./setup.sh --with-logs",
     "start_manual": "docker compose up -d",
+    "start_manual_with_logs": "docker compose --profile logs up -d",
     "stop": "./stop.sh",
     "update": "./update.sh",
     "health_check": "./update.sh --verify",
@@ -105,7 +107,7 @@
   },
 
   "security_posture": "YELLOW",
-  "security_summary": "No hardcoded secrets. .env gitignored. Default Grafana credentials (admin/admin). AlertManager null receiver. No TLS. No auth on Prometheus/Loki/AlertManager. cAdvisor image unpinned.",
+  "security_summary": "No hardcoded secrets. .env gitignored. Default Grafana credentials (admin/admin). AlertManager null receiver. No TLS. No auth on Prometheus/Loki/AlertManager. All images pinned to specific versions.",
 
   "task_queue_summary": "9 tasks total: 3 high (security remediation), 3 medium (config consistency), 3 low (feature enhancement). See .claude/state/TASK_QUEUE.md for details."
 }

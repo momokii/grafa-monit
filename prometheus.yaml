@@ -22,51 +22,25 @@ scrape_configs:
   - job_name: 'cadvisor'
     static_configs:
       - targets: ['cadvisor:8080']
-  
-  # - job_name: 'node-exporter-test-dynamic'
-  #   file_sd_configs:
-  #   - files:
-  #     - '/etc/prometheus/targets/*.json'
-  #     refresh_interval: 30s
-  #   relabel_configs:
-  #   # Extract hostname dari target
-  #   - source_labels: [__address__]
-  #     target_label: instance
-  #     regex: '([^:]+).*'
-  #     replacement: '${1}'  # ✅ Fix escape
-    
-  #   # Set scheme berdasarkan port
-  #   - source_labels: [__address__]
-  #     regex: '.*:443'
-  #     target_label: __scheme__
-  #     replacement: https
-    
-  #   - source_labels: [__address__]
-  #     regex: '.*:9100'
-  #     target_label: __scheme__
-  #     replacement: http
 
-  #   # Gunakan vm_name dari JSON
-  #   - source_labels: [vm_name]
-  #     target_label: vm_name
-  #     regex: '(.+)'
-  #     replacement: '${1}'
-    
-  #   # Gunakan environment dari JSON
-  #   - source_labels: [environment]
-  #     target_label: environment
-  #     replacement: '${1}'
-    
-  #   # Gunakan access_method dari JSON
-  #   - source_labels: [access_method]
-  #     target_label: access_method
-  #     replacement: '${1}'
-
-    #   - targets: ['node-exporter:9100']
-    # relabel_configs:
-    #   - source_labels: [__address__]
-    #     target_label: instance
-    #     replacement: "localhost"
+  # Centralized monitoring: discovers remote node-exporter instances from JSON files
+  # Add target files to prometheus/targets/ — Prometheus auto-discovers changes every 30s
+  - job_name: 'remote-node-exporters'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/*.json'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [vm_name]
+        target_label: vm_name
+        regex: '(.+)'
+        action: replace
+      - source_labels: [environment]
+        target_label: environment
+        regex: '(.+)'
+        action: replace
 
   - job_name: 'prometheus'
     static_configs:
