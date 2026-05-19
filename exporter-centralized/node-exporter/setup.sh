@@ -120,9 +120,9 @@ services:
       - "vm.name=$VM_NAME"
       - "vm.environment=$ENVIRONMENT"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      test: ["CMD-SHELL", "echo > /dev/tcp/localhost/9100 || exit 1"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
       start_period: 5s
     networks:
