@@ -189,17 +189,15 @@ fi
 if [ "$CLEAN" = true ]; then
     print_info "Cleaning stale Prometheus series for '${VM_NAME}'..."
 
-    # Delete series by vm_name label
-    if curl -sf -X POST "${PROMETHEUS_URL}/api/v1/admin/tsdb/delete_series" --data-urlencode "match[]={vm_name=\"${VM_NAME}\"}" 2>/dev/null; then
-        print_success "Deleted series matching vm_name=\"${VM_NAME}\""
+    # Delete series by instance label (now set to vm_name)
+    if curl -sf -X POST "${PROMETHEUS_URL}/api/v1/admin/tsdb/delete_series" --data-urlencode "match[]={instance=\"${VM_NAME}\"}" 2>/dev/null; then
+        print_success "Deleted series matching instance=\"${VM_NAME}\""
     else
         print_warning "Could not delete series — is Prometheus running?"
     fi
 
-    # Also clean by instance if we have the IP
-    if [ "$FOUND_IP" != "unknown" ]; then
-        curl -sf -X POST "${PROMETHEUS_URL}/api/v1/admin/tsdb/delete_series" --data-urlencode "match[]={instance=\"${FOUND_IP}\"}" 2>/dev/null || true
-    fi
+    # Also clean by vm_name label
+    curl -sf -X POST "${PROMETHEUS_URL}/api/v1/admin/tsdb/delete_series" --data-urlencode "match[]={vm_name=\"${VM_NAME}\"}" 2>/dev/null || true
 
     # Clean tombstones
     if curl -sf -X POST "${PROMETHEUS_URL}/api/v1/admin/tsdb/clean_tombstones" 2>/dev/null; then
