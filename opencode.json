@@ -7,7 +7,7 @@
     "runtime": "Docker Compose v2+",
     "services": [
       "node-exporter (prom/node-exporter:v1.6.1) — host system metrics [core]",
-      "cadvisor (zcube/cadvisor:v0.51.0) — Docker container metrics [core]",
+      "cadvisor (zcube/cadvisor:v0.45.0) — Docker container metrics [core]",
       "prometheus (prom/prometheus:v2.47.0) — metrics storage, querying, alerting [core]",
       "grafana (grafana/grafana:12.1.1) — visualization with pre-provisioned dashboards [core]",
       "alertmanager (prom/alertmanager:v0.28.1) — alert routing (null receiver) [core]",

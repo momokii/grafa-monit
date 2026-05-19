@@ -149,7 +149,7 @@ show_updated_versions() {
 
     local images=(
         "prom/node-exporter:v1.6.1"
-        "zcube/cadvisor:v0.51.0"
+        "zcube/cadvisor:v0.45.0"
         "prom/prometheus:v2.47.0"
         "grafana/grafana:12.1.1"
         "prom/alertmanager:v0.28.1"

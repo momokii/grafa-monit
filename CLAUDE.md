@@ -119,6 +119,6 @@ curl -f http://localhost:3100/ready        # Loki (optional)
 - Default Grafana credentials (YELLOW — change via .env)
 - AlertManager null receiver (YELLOW — no notifications)
 - No TLS, no auth on most services (YELLOW)
-- cAdvisor image pinned to v0.51.0 (GREEN — was previously unpinned)
+- cAdvisor image pinned to v0.45.0 (GREEN — was previously unpinned)
 
 See `.claude/SECURITY_STANDARDS.md` for full audit and remediation tasks.

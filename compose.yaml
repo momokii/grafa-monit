@@ -46,7 +46,7 @@ services:
   
   cadvisor:
     # image: google/cadvisor:latest
-    image: zcube/cadvisor:v0.51.0 # using this if google version not works
+    image: zcube/cadvisor:v0.45.0 # using this if google version not works
     container_name: cadvisor
     restart: unless-stopped
     ports:

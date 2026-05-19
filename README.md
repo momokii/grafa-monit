@@ -1598,7 +1598,7 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 - **Centralized Monitoring**: Monitor remote VMs by deploying only node-exporter on them
 - **Optional Log Aggregation**: Loki + Alloy moved behind Docker Compose profiles (`--profile logs`)
 - **File-Based Service Discovery**: Add remote targets via JSON files with 30s auto-discovery
-- **All Images Pinned**: cAdvisor pinned to v0.51.0, no more unpinned `:latest` tags
+- **All Images Pinned**: cAdvisor pinned to v0.45.0, no more unpinned `:latest` tags
 - **Bug Fixes**: Fixed version mismatches, remote exporter script bug, profile-aware stop/update
 - **New Flags**: `--with-logs` flag on setup.sh and update.sh for optional log aggregation
 
