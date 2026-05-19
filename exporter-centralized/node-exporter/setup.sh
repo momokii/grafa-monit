@@ -7,8 +7,8 @@
 
 set -euo pipefail
 
-VM_NAME="${1:-}"
-ENVIRONMENT="${2:-production}"
+VM_NAME=""
+ENVIRONMENT="production"
 
 # --- Color output ---
 RED='\033[0;31m'
@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
             echo "This script:"
             echo "  1. Creates a compose.yaml with node-exporter on this VM"
             echo "  2. Starts the node-exporter container"
-            echo "  3. Outputs the JSON target to add to the central Prometheus"
+            echo "  3. Outputs the command to register with central Prometheus"
             echo ""
             echo "Arguments:"
             echo "  VM_NAME      Unique name for this VM (e.g., web-server-01)"
@@ -44,8 +44,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  -h, --help    Show this help message"
             echo ""
-            echo "After setup, on the CENTRAL server create a target file:"
-            echo "  prometheus/targets/<vm-name>.json"
+            echo "After setup, on the CENTRAL server run:"
+            echo "  ./targets/add-host.sh <THIS_IP> <VM_NAME> <APP> <ENV>"
             echo "  Prometheus auto-discovers new targets every 30s."
             echo ""
             echo "Examples:"
@@ -54,15 +54,20 @@ while [[ $# -gt 0 ]]; do
             echo ""
             exit 0
             ;;
+        -*)
+            print_error "Unknown option: $1"
+            exit 1
+            ;;
         *)
+            if [ -z "$VM_NAME" ]; then
+                VM_NAME="$1"
+            elif [ "$ENVIRONMENT" = "production" ]; then
+                ENVIRONMENT="$1"
+            fi
             shift
             ;;
     esac
 done
-
-# Positional arguments (after flags)
-VM_NAME="${1:-}"
-ENVIRONMENT="${2:-production}"
 
 if [ -z "$VM_NAME" ]; then
     print_error "VM_NAME is required. Use --help for usage."
