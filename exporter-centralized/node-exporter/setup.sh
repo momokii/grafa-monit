@@ -22,12 +22,38 @@ print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 print_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# --- Validate arguments ---
+# --- Parse arguments ---
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            echo "Usage: $0 [OPTIONS] <VM_NAME> [ENVIRONMENT]"
+            echo ""
+            echo "Setup Node Exporter for remote VM monitoring."
+            echo ""
+            echo "Arguments:"
+            echo "  VM_NAME      Unique name for this VM (e.g., web-server-01)"
+            echo "  ENVIRONMENT  Deployment environment (default: production)"
+            echo ""
+            echo "Options:"
+            echo "  -h, --help    Show this help message"
+            echo ""
+            echo "Example:"
+            echo "  $0 web-server-01 production"
+            echo ""
+            exit 0
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Positional arguments (after flags)
+VM_NAME="${1:-}"
+ENVIRONMENT="${2:-production}"
+
 if [ -z "$VM_NAME" ]; then
-    print_error "VM_NAME is required."
-    echo "Usage: $0 <VM_NAME> [ENVIRONMENT]"
-    echo "  VM_NAME:      Unique name for this VM (e.g., web-server-01)"
-    echo "  ENVIRONMENT:  Deployment environment (default: production)"
+    print_error "VM_NAME is required. Use --help for usage."
     exit 1
 fi
 
