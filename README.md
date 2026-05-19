@@ -65,20 +65,20 @@ grafana-host-monitoring/
 │   ├── provisioning/
 │   │   ├── dashboards/          # Auto-provisioned dashboards (5 active)
 │   │   │   ├── dashboard.yml    # Dashboard provider config
-│   │   │   ├── 1860.json        # Node Exporter Full
-│   │   │   ├── 11076.json       # Node Exporter Server Metrics
-│   │   │   ├── 19908.json       # cAdvisor Docker Insights
-│   │   │   ├── 13659_rev1.json  # Blackbox Prober
-│   │   │   └── alerts.json      # Alert History
+│   │   │   ├── node-exporter-full.json          # Detailed host metrics
+│   │   │   ├── node-exporter-server-metrics.json # Quick health overview
+│   │   │   ├── cadvisor-docker-insights.json    # Container monitoring
+│   │   │   ├── blackbox-prober.json             # Endpoint probing
+│   │   │   └── alert-history.json               # Alert status and trends
 │   │   └── datasources/         # Auto-provisioned data sources
 │   │       ├── datasource.yml   # Prometheus datasource
 │   │       └── datasource-loki.yml.disabled  # Loki (enabled by --with-logs)
 │   └── dashboards-optional/     # Dashboards for disabled exporters
-│       ├── 19792_rev6.json      # cAdvisor Full (heavy, overlaps 19908)
-│       ├── 9628.json            # PostgreSQL (requires postgres_exporter)
-│       ├── nginx.json           # NGINX (requires nginx_exporter)
-│       ├── redis.json           # Redis (requires Redis datasource)
-│       └── redis-streaming.json # Redis Streaming
+│       ├── cadvisor-full.json          # cAdvisor deep analysis
+│       ├── postgresql-database.json    # PostgreSQL (requires postgres_exporter)
+│       ├── nginx.json                  # NGINX (requires nginx_exporter)
+│       ├── redis.json                  # Redis (requires Redis datasource)
+│       └── redis-streaming.json        # Redis streaming
 └── scripts/                     # Maintenance and utility scripts
     ├── backup.sh                # Backup script for data and configs
     ├── restore.sh               # Restore script for disaster recovery
@@ -465,8 +465,8 @@ Alert status and history overview:
 
 Available in `grafana/dashboards-optional/` — move to `grafana/provisioning/dashboards/` if you enable the corresponding exporter:
 
-- **19792_rev6.json** — cAdvisor Full (heavier version of 19908, useful for deep container analysis)
-- **9628.json** — PostgreSQL Database (requires `postgres_exporter`)
+- **cadvisor-full.json** — cAdvisor deep analysis (heavier version of cadvisor-docker-insights)
+- **postgresql-database.json** — PostgreSQL (requires `postgres_exporter`)
 - **nginx.json** — NGINX (requires `nginx_exporter`)
 - **redis.json** + **redis-streaming.json** — Redis (requires Redis datasource)
 
