@@ -61,6 +61,10 @@ grafana-host-monitoring/
 │   └── blackbox_exporter.yaml
 ├── exporter-centralized/        # Remote VM setup scripts
 │   └── node-exporter/setup.sh   # Deploy node-exporter on remote VMs
+├── targets/                     # Target management scripts
+│   ├── add-host.sh              # Add host to app group
+│   ├── remove-host.sh           # Remove host + optional ghost cleanup
+│   └── list-targets.sh          # List all configured targets
 ├── grafana/                     # Grafana provisioning
 │   ├── provisioning/
 │   │   ├── dashboards/          # Auto-provisioned dashboards (5 active)
@@ -186,22 +190,35 @@ To monitor additional VMs from this central server:
    # Example: ./setup.sh web-server-01 production
    ```
 
-2. **On the central server**, create a target file:
+2. **On the central server**, add the host using the target management script:
    ```bash
-   cat > prometheus/targets/<vm-name>.json << EOF
-   [
-     {
-       "targets": ["<REMOTE_IP>:9100"],
-       "labels": {
-         "vm_name": "<VM_NAME>",
-         "environment": "production"
-       }
-     }
-   ]
-   EOF
+   ./targets/add-host.sh <REMOTE_IP> <VM_NAME> <APP_GROUP> <ENVIRONMENT>
+
+   # Examples:
+   ./targets/add-host.sh 192.168.1.10 fe-app-a  my-app-A production
+   ./targets/add-host.sh 192.168.1.11 be-app-a  my-app-A production
+   ./targets/add-host.sh 192.168.1.20 fe-app-b  my-app-B staging
    ```
 
 3. Prometheus auto-discovers new targets every 30 seconds — no restart needed.
+
+### Managing Remote Hosts
+
+Hosts are organized by app group. Each group gets one JSON file in `prometheus/targets/`.
+
+```bash
+# List all configured hosts
+./targets/list-targets.sh
+
+# Filter by app group
+./targets/list-targets.sh --app my-app-A
+
+# Remove a host (stops scraping)
+./targets/remove-host.sh fe-app-a --app my-app-A
+
+# Remove a host AND clean stale data from Prometheus (fixes typos immediately)
+./targets/remove-host.sh typo-name --clean
+```
 
 ## Monitoring Architecture
 

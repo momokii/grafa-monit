@@ -41,6 +41,10 @@ scrape_configs:
         target_label: environment
         regex: '(.+)'
         action: replace
+      - source_labels: [app]
+        target_label: app
+        regex: '(.+)'
+        action: replace
 
   - job_name: 'prometheus'
     static_configs:

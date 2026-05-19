@@ -78,7 +78,12 @@ create_directories() {
     mkdir -p logs/{prometheus,grafana,alertmanager}
 
     # Create targets directory for centralized monitoring
-    mkdir -p prometheus/targets
+    if [ ! -d "prometheus/targets" ]; then
+        mkdir -p prometheus/targets
+    elif [ ! -w "prometheus/targets" ]; then
+        print_info "Fixing targets directory ownership..."
+        sudo chown "$(whoami)" prometheus/targets 2>/dev/null || true
+    fi
 
     # Additional directories for completeness
     local additional_directories=(

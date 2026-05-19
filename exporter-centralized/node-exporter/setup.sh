@@ -152,22 +152,15 @@ echo "============================================================"
 echo "  NEXT STEP: Register this VM with central Prometheus"
 echo "============================================================"
 echo ""
-print_info "Add the following to your central Prometheus targets directory"
-print_info "(prometheus/targets/${VM_NAME}.json):"
+print_info "On the CENTRAL server, run:"
 echo ""
-cat << TARGET_JSON
-[
-  {
-    "targets": ["${HOST_IP}:9100"],
-    "labels": {
-      "vm_name": "${VM_NAME}",
-      "environment": "${ENVIRONMENT}"
-    }
-  }
-]
-TARGET_JSON
+print_info "  ./targets/add-host.sh ${HOST_IP} ${VM_NAME} <APP_GROUP> ${ENVIRONMENT}"
 echo ""
-print_info "Prometheus auto-discovers new targets every 30s — no restart needed."
+print_info "Example:"
+print_info "  ./targets/add-host.sh ${HOST_IP} ${VM_NAME} my-app ${ENVIRONMENT}"
+echo ""
+print_info "This creates a target file that Prometheus auto-discovers within 30s."
+print_info "Manage all targets with: ./targets/list-targets.sh"
 echo ""
 print_info "VM Details:"
 print_info "  Name:        $VM_NAME"
