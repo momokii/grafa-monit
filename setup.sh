@@ -483,6 +483,30 @@ show_access_info() {
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo
+    echo "Grafana Host Monitoring Stack - Centralized Observability v4.0"
+    echo
+    echo "This script sets up the monitoring stack. By default it starts core"
+    echo "services only (metrics monitoring). Use --with-logs to also enable"
+    echo "log aggregation via Loki + Alloy."
+    echo
+    echo "Setup Modes:"
+    echo
+    echo "  Default (no flags):"
+    echo "    Starts 6 core services for centralized metrics monitoring:"
+    echo "    - node-exporter   Host system metrics (CPU, memory, disk, network)"
+    echo "    - cadvisor        Docker container metrics"
+    echo "    - prometheus      Metrics storage, querying, and alerting"
+    echo "    - grafana         Visualization dashboards"
+    echo "    - alertmanager    Alert routing and notifications"
+    echo "    - blackbox_exporter  HTTP/HTTPS endpoint probing"
+    echo "    Recommended for: centralized monitoring of multiple VMs."
+    echo
+    echo "  --with-logs:"
+    echo "    Starts all 6 core services PLUS 2 log aggregation services:"
+    echo "    - loki            Log storage and querying"
+    echo "    - alloy           Log collection (system + container logs)"
+    echo "    Recommended for: when you also need centralized log management."
+    echo
     echo "Options:"
     echo "  -h, --help           Show this help message"
     echo "  --with-logs          Enable log aggregation (Loki + Alloy)"
@@ -492,10 +516,13 @@ show_usage() {
     echo "  --quick              Quick setup (skip pull, validation, and wait)"
     echo
     echo "Examples:"
-    echo "  $0                   # Core setup (metrics only, no logging)"
-    echo "  $0 --with-logs       # Full setup with Loki + Alloy log aggregation"
+    echo "  $0                   # Core setup - metrics only (recommended)"
+    echo "  $0 --with-logs       # Full setup - metrics + log aggregation"
     echo "  $0 --quick           # Quick setup for development"
     echo "  $0 --skip-pull       # Setup without pulling latest images"
+    echo
+    echo "After setup, add remote VMs with:"
+    echo "  ./exporter-centralized/node-exporter/setup.sh <VM_NAME> <ENV>"
 }
 
 # Main function

@@ -182,23 +182,27 @@ show_status() {
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo
+    echo "Stop the Grafana Host Monitoring Stack."
+    echo "Automatically detects and stops all running services including"
+    echo "optional Loki + Alloy if they were started with --with-logs."
+    echo
     echo "Options:"
     echo "  -h, --help           Show this help message"
     echo "  -s, --stop           Stop services only (keep containers)"
-    echo "  -d, --down           Stop and remove containers"
-    echo "  -v, --volumes        Also remove volumes"
-    echo "  -n, --networks       Also remove networks"
+    echo "  -d, --down           Stop and remove containers (default)"
+    echo "  -v, --volumes        Also remove Docker volumes (deletes stored data)"
+    echo "  -n, --networks       Also remove custom Docker networks"
     echo "  -i, --images         Also remove Docker images"
-    echo "  -c, --cleanup        Also cleanup data directories"
+    echo "  -c, --cleanup        Also remove data directories (data/, logs/)"
     echo "  --all                Remove everything (containers, volumes, networks, images, data)"
-    echo "  --status             Show current status only"
+    echo "  --status             Show current service status only"
     echo
     echo "Examples:"
-    echo "  $0                   # Stop and remove containers (default)"
-    echo "  $0 -s                # Stop services only"
-    echo "  $0 --all             # Complete cleanup"
+    echo "  $0                   # Stop and remove containers (data preserved)"
+    echo "  $0 -s                # Stop services but keep containers"
+    echo "  $0 --all             # Complete cleanup (removes everything)"
     echo "  $0 -v                # Stop, remove containers and volumes"
-    echo "  $0 --status          # Show current status"
+    echo "  $0 --status          # Show what's currently running"
 }
 
 # Main function

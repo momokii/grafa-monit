@@ -378,26 +378,41 @@ cleanup_old_images() {
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo
+    echo "Update the Grafana Host Monitoring Stack."
+    echo "By default updates core services only. Use --with-logs to also"
+    echo "update optional Loki + Alloy log aggregation services."
+    echo
+    echo "Update Modes:"
+    echo
+    echo "  Default (no flags):"
+    echo "    Updates the 6 core services:"
+    echo "    - node-exporter, cadvisor, prometheus, grafana,"
+    echo "      alertmanager, blackbox_exporter"
+    echo
+    echo "  --with-logs:"
+    echo "    Updates all 8 services (core + loki + alloy)"
+    echo "    Use this if you initially set up with ./setup.sh --with-logs"
+    echo
     echo "Options:"
     echo "  -h, --help           Show this help message"
-    echo "  --with-logs          Include Loki + Alloy in update"
-    echo "  -s, --status         Show current status only"
-    echo "  -v, --versions       Show current versions only"
-    echo "  -p, --pull           Pull latest images only"
-    echo "  -r, --rolling        Perform rolling update (one service at a time)"
-    echo "  -f, --force          Force update without confirmation"
-    echo "  --backup             Create configuration backup before update"
-    echo "  --cleanup            Clean up old Docker images after update"
+    echo "  --with-logs          Include Loki + Alloy in the update"
+    echo "  -s, --status         Show current service status only"
+    echo "  -v, --versions       Show current and available image versions"
+    echo "  -p, --pull           Pull latest images only (no restart)"
+    echo "  -r, --rolling        Rolling update (one service at a time, 3s pause)"
+    echo "  -f, --force          Skip confirmation prompt"
+    echo "  --backup             Create config backup before updating"
+    echo "  --cleanup            Remove old Docker images after update"
     echo "  --verify             Run health checks after update"
-    echo "  --logs               Show recent logs after update"
+    echo "  --logs               Show recent service logs after update"
     echo
     echo "Examples:"
-    echo "  $0                   # Standard update (core services only)"
+    echo "  $0                   # Update core services"
     echo "  $0 --with-logs       # Update all services including Loki + Alloy"
-    echo "  $0 -r                # Rolling update with brief pauses"
-    echo "  $0 --backup --verify # Update with backup and health verification"
-    echo "  $0 --status          # Show current status only"
-    echo "  $0 -p                # Pull latest images only"
+    echo "  $0 -r                # Rolling update (safer, one at a time)"
+    echo "  $0 --backup --verify # Update with backup + health check"
+    echo "  $0 --status          # See what's running right now"
+    echo "  $0 -p                # Just pull images, don't restart"
 }
 
 # Main function

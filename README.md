@@ -114,6 +114,38 @@ This monitoring stack uses a **unified Docker Compose configuration** that works
 - **Centralized Monitoring**: Monitor remote VMs by deploying only node-exporter on them
 - **Consistent Performance**: Same functionality across Linux, Windows, and macOS environments
 
+### Setup Modes
+
+The monitoring stack has two setup modes. Choose the one that fits your needs:
+
+#### Default Mode (Core — Metrics Only)
+
+**Recommended for most users.** Starts 6 core services for centralized metrics monitoring:
+
+| Service | Purpose | Port |
+|---|---|---|
+| **node-exporter** | Host system metrics (CPU, memory, disk, network) | 9100 |
+| **cadvisor** | Docker container metrics (resource usage, performance) | 8080 |
+| **prometheus** | Metrics storage, querying, and alerting engine | 9090 |
+| **grafana** | Visualization dashboards | 3000 |
+| **alertmanager** | Alert routing and notification management | 9093 |
+| **blackbox_exporter** | HTTP/HTTPS endpoint probing and availability checks | 9115 |
+
+Use this when you need centralized monitoring of multiple VMs, host and container metrics, and endpoint probing — without log aggregation.
+
+#### Full Mode (`--with-logs`) — Metrics + Log Aggregation
+
+Starts all 6 core services **plus** 2 log aggregation services:
+
+| Service | Purpose | Port |
+|---|---|---|
+| **loki** | Log storage and querying | 3100 |
+| **alloy** | Log collection (system logs, container logs, file-based logs) | 12345 |
+
+Use this when you also need centralized log management — collecting, storing, and searching logs from your host and containers.
+
+> **Why is logging optional?** Many setups only need metrics. Loki and Alloy consume additional memory (~1-2GB combined) and disk space for log storage. If you don't need log querying in Grafana, the core mode is lighter and simpler.
+
 ### Quick Start
 
 1. **Clone the repository:**
@@ -122,29 +154,34 @@ This monitoring stack uses a **unified Docker Compose configuration** that works
    cd grafana-host-monit
    ```
 
-2. **Run the setup script:**
+2. **Choose your setup mode and run:**
    ```bash
-   # Core setup (metrics only — recommended)
    chmod +x setup.sh
+
+   # Core setup — metrics only (recommended for most users)
    ./setup.sh
 
-   # Full setup with log aggregation (Loki + Alloy)
+   # OR: Full setup with log aggregation (Loki + Alloy)
    ./setup.sh --with-logs
 
-   # Or start manually with Docker Compose
+   # OR: Start manually with Docker Compose
    docker compose up -d                    # Core services only
-   docker compose --profile logs up -d     # Include log aggregation
+   docker compose --profile logs up -d     # All services including logs
    ```
 
 3. **Access the interfaces:**
+
+   **Core services (always available):**
    - **Grafana**: http://localhost:3000 (admin/admin)
    - **Prometheus**: http://localhost:9090
    - **AlertManager**: http://localhost:9093
    - **Node Exporter**: http://localhost:9100/metrics
    - **cAdvisor**: http://localhost:8080/metrics
    - **Blackbox Exporter**: http://localhost:9115
-   - **Loki**: http://localhost:3100 (only with `--with-logs`)
-   - **Alloy**: http://localhost:12345/metrics (only with `--with-logs`)
+
+   **Log services (only with `--with-logs`):**
+   - **Loki**: http://localhost:3100
+   - **Alloy**: http://localhost:12345/metrics
 
 > **Note**: Grafana credentials can be customized by setting `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD` environment variables in your `.env` file before starting the services.
 
@@ -287,37 +324,68 @@ If you prefer manual setup or need to customize the installation:
 The stack includes three management scripts for different operations:
 
 #### Setup Script (`setup.sh`)
-- **Purpose**: Initial setup and configuration of the monitoring stack
-- **Features**: Directory creation, network setup, permission handling, service orchestration, optional log aggregation
-- **Usage**:
-  ```bash
-  ./setup.sh                    # Core setup (metrics only)
-  ./setup.sh --with-logs        # Full setup including Loki + Alloy
-  ./setup.sh --quick            # Quick setup for development
-  ./setup.sh --skip-pull        # Setup without pulling latest images
-  ```
+
+Initial setup and configuration of the monitoring stack. Creates directories, sets permissions, pulls images, and starts services in dependency order.
+
+**Setup modes:**
+- **Default** — Updates 6 core services: node-exporter, cadvisor, prometheus, grafana, alertmanager, blackbox_exporter
+- **`--with-logs`** — Updates all 8 services (core + loki + alloy). Use this if you initially set up with `./setup.sh --with-logs`
+
+```bash
+./setup.sh                    # Core setup (metrics only — recommended)
+./setup.sh --with-logs        # Full setup including Loki + Alloy
+./setup.sh --quick            # Quick setup for development (skip pull + validation)
+./setup.sh --skip-pull        # Setup without pulling latest images
+./setup.sh --help             # Show detailed help with service lists
+```
 
 #### Stop Script (`stop.sh`)
-- **Purpose**: Service shutdown and cleanup
-- **Features**: Graceful shutdown, container removal, data preservation options, auto-detects optional services
-- **Usage**:
-  ```bash
-  ./stop.sh                     # Stop and remove containers (default)
-  ./stop.sh -s                  # Stop services only (keep containers)
-  ./stop.sh --all               # Remove everything (containers, volumes, networks, images, data)
-  ./stop.sh --status            # Show current status
-  ```
+
+Service shutdown and cleanup. Automatically detects optional services (Loki/Alloy) regardless of how they were started.
+
+```bash
+./stop.sh                     # Stop and remove containers (data preserved)
+./stop.sh -s                  # Stop services only (keep containers)
+./stop.sh --all               # Remove everything (containers, volumes, networks, images, data)
+./stop.sh -v                  # Stop, remove containers and Docker volumes
+./stop.sh --status            # Show what's currently running
+./stop.sh --help              # Show detailed help
+```
 
 #### Update Script (`update.sh`)
-- **Purpose**: Update images and restart services
-- **Features**: Configuration validation, backup creation, rolling updates, optional service awareness
-- **Usage**:
-  ```bash
-  ./update.sh                   # Update core services
-  ./update.sh --with-logs       # Update all services including Loki + Alloy
-  ./update.sh -r                # Rolling update (one service at a time)
-  ./update.sh --backup --verify # Update with backup and health verification
-  ```
+
+Update Docker images and restart services. Supports both batch and rolling update modes.
+
+**Update modes:**
+- **Default** — Updates 6 core services: node-exporter, cadvisor, prometheus, grafana, alertmanager, blackbox_exporter
+- **`--with-logs`** — Updates all 8 services (core + loki + alloy). Use this if you initially set up with `./setup.sh --with-logs`
+
+```bash
+./update.sh                   # Update core services
+./update.sh --with-logs       # Update all services including Loki + Alloy
+./update.sh -r                # Rolling update (one service at a time, 3s pause)
+./update.sh --backup --verify # Update with backup + health check
+./update.sh -p                # Just pull images, don't restart
+./update.sh -v                # Show current and available image versions
+./update.sh --status          # See what's running right now
+./update.sh --help            # Show detailed help with service lists
+```
+
+#### Remote Node Exporter Setup (`exporter-centralized/node-exporter/setup.sh`)
+
+Deploys a standalone node-exporter container on a remote VM for centralized monitoring. After running this on a remote machine, add its IP to the central Prometheus targets directory.
+
+```bash
+# On the REMOTE VM:
+./exporter-centralized/node-exporter/setup.sh <VM_NAME> <ENVIRONMENT>
+
+# Examples:
+./exporter-centralized/node-exporter/setup.sh web-server-01 production
+./exporter-centralized/node-exporter/setup.sh db-server staging
+./exporter-centralized/node-exporter/setup.sh --help
+```
+
+The script will output the exact JSON target to add to your central Prometheus server.
 
 ## Monitoring Capabilities
 
