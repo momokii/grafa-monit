@@ -63,18 +63,18 @@ grafana-host-monitoring/
 │   └── node-exporter/setup.sh   # Deploy node-exporter on remote VMs
 ├── grafana/                     # Grafana provisioning
 │   ├── provisioning/
-│   │   ├── dashboards/          # Auto-provisioned dashboards (6 active)
+│   │   ├── dashboards/          # Auto-provisioned dashboards (5 active)
 │   │   │   ├── dashboard.yml    # Dashboard provider config
 │   │   │   ├── 1860.json        # Node Exporter Full
 │   │   │   ├── 11076.json       # Node Exporter Server Metrics
 │   │   │   ├── 19908.json       # cAdvisor Docker Insights
-│   │   │   ├── 19792_rev6.json  # cAdvisor Full
 │   │   │   ├── 13659_rev1.json  # Blackbox Prober
 │   │   │   └── alerts.json      # Alert History
 │   │   └── datasources/         # Auto-provisioned data sources
 │   │       ├── datasource.yml   # Prometheus datasource
 │   │       └── datasource-loki.yml.disabled  # Loki (enabled by --with-logs)
 │   └── dashboards-optional/     # Dashboards for disabled exporters
+│       ├── 19792_rev6.json      # cAdvisor Full (heavy, overlaps 19908)
 │       ├── 9628.json            # PostgreSQL (requires postgres_exporter)
 │       ├── nginx.json           # NGINX (requires nginx_exporter)
 │       ├── redis.json           # Redis (requires Redis datasource)
@@ -409,7 +409,7 @@ Centralized logging capabilities through Alloy's advanced log processing:
 
 ## Pre-Configured Dashboards
 
-The monitoring stack comes with 6 pre-configured dashboards that are automatically provisioned when Grafana starts. Additional dashboards for optional services (PostgreSQL, NGINX, Redis) are available in `grafana/dashboards-optional/`.
+The monitoring stack comes with 5 pre-configured dashboards that are automatically provisioned when Grafana starts. Additional dashboards for optional services are available in `grafana/dashboards-optional/`.
 
 ### System Monitoring Dashboards
 
@@ -441,17 +441,9 @@ Container resource monitoring:
 - Network and disk I/O statistics
 - Container health and restart counts
 
-#### 4. cAdvisor Full (ID: 19792)
-
-Comprehensive container metrics with all scraped data:
-
-- Detailed resource breakdown per container
-- Advanced performance analysis
-- Resource limit utilization and throttling
-
 ### Probe Monitoring
 
-#### 5. Blackbox Prober (ID: 13659)
+#### 4. Blackbox Prober (ID: 13659)
 
 HTTP/HTTPS endpoint probing dashboard:
 
@@ -461,7 +453,7 @@ HTTP/HTTPS endpoint probing dashboard:
 
 ### Alerting
 
-#### 6. Alert History Dashboard
+#### 5. Alert History Dashboard
 
 Alert status and history overview:
 
@@ -473,6 +465,7 @@ Alert status and history overview:
 
 Available in `grafana/dashboards-optional/` — move to `grafana/provisioning/dashboards/` if you enable the corresponding exporter:
 
+- **19792_rev6.json** — cAdvisor Full (heavier version of 19908, useful for deep container analysis)
 - **9628.json** — PostgreSQL Database (requires `postgres_exporter`)
 - **nginx.json** — NGINX (requires `nginx_exporter`)
 - **redis.json** + **redis-streaming.json** — Redis (requires Redis datasource)
