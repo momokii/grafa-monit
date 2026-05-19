@@ -82,9 +82,6 @@ create_directories() {
 
     # Additional directories for completeness
     local additional_directories=(
-        "logs/nginx"
-        "logs/api"
-        "logs/app"
         "backups"
         "grafana/provisioning/datasources"
         "grafana/provisioning/dashboards"

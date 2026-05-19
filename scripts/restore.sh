@@ -34,7 +34,7 @@ restore_grafana() {
     fi
     
     echo "Stopping Grafana container..."
-    docker-compose stop grafana
+    docker compose stop grafana
     
     echo "Restoring Grafana data from $BACKUP_FILE..."
     # Backup current data first
@@ -58,7 +58,7 @@ restore_grafana() {
     sudo chown -R 472:472 "$DATA_DIR/grafana"  # Set Grafana permissions (UID 472 is grafana)
     
     echo "Starting Grafana container..."
-    docker-compose up -d grafana
+    docker compose up -d grafana
     
     echo "Grafana restore completed."
 }
@@ -90,8 +90,8 @@ restore_prometheus_config() {
     tar -xzf "$BACKUP_FILE" -C "./"
     
     echo "Reloading Prometheus and Alertmanager..."
-    docker-compose exec prometheus killall -HUP prometheus
-    docker-compose exec alertmanager killall -HUP alertmanager
+    docker compose exec prometheus killall -HUP prometheus
+    docker compose exec alertmanager killall -HUP alertmanager
     
     echo "Prometheus configuration restore completed."
 }
@@ -110,7 +110,7 @@ restore_prometheus_data() {
     fi
     
     echo "Stopping Prometheus container..."
-    docker-compose stop prometheus
+    docker compose stop prometheus
     
     echo "Restoring Prometheus data from $BACKUP_FILE..."
     # Backup current data first
@@ -134,7 +134,7 @@ restore_prometheus_data() {
     # sudo chown -R nobody:nobody "$DATA_DIR"  # Set Prometheus permissions
     
     echo "Starting Prometheus container..."
-    docker-compose up -d prometheus
+    docker compose up -d prometheus
     
     echo "Prometheus data restore completed."
 }

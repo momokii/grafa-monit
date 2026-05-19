@@ -50,21 +50,22 @@ scrape_configs:
   #   static_configs:
   #     - targets: ['cadvisor:8080']
 
-  # blackbox exxporter setup for scrapping for prometheus
+  # blackbox exporter — probe HTTP/HTTPS endpoints for availability
+  # Replace these targets with your own URLs. Each target uses a probe module
+  # defined in blackbox_exporter/blackbox_exporter.yaml (http_website_2xx, http_api_2xx).
   - job_name: 'blackbox'
     metrics_path: /probe
     static_configs:
       - targets:
-        - http://prometheus.io    # Target to probe with http.
-        # - https://prometheus.io   # Target to probe with https.
-        # - http://example.com:8080 # Target to probe with http on port 8080.
+        # - https://your-website.com       # Website availability check
+        # - https://api.yourapp.com/health  # API health endpoint
         labels:
           probe_module: http_website_2xx
 
-      - targets: 
-        - http://api.domain/api/health # api endpoint
-        labels:
-          probe_module: http_api_2xx
+      # - targets:
+      #   - https://api.yourapp.com/health  # API endpoint with stricter checks
+      #   labels:
+      #     probe_module: http_api_2xx
 
     relabel_configs:
       # 1. Read the custom 'probe_module' label and set it as the module parameter.

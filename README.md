@@ -39,62 +39,51 @@ grafana-host-monitoring/
 ├── alertmanager.yml             # AlertManager configuration
 ├── .example.env                 # Environment variables template
 ├── .gitignore                   # Git ignore rules
-├── setup.sh                     # Simplified setup script
+├── setup.sh                     # Setup script (core or --with-logs)
 ├── stop.sh                      # Service management script
-├── update.sh                    ****# Update and restart script
+├── update.sh                    # Update and restart script
 ├── data/                        # Data storage (gitignored)
 │   ├── prometheus/              # Prometheus TSDB data
 │   ├── grafana/                 # Grafana database and plugins
-│   ├── loki/                    # Loki chunks and index data
-│   └── alloy_data/              # Alloy persistent storage and positions
+│   ├── loki/                    # Loki chunks and index data (optional)
+│   └── alloy_data/              # Alloy persistent storage (optional)
 ├── logs/                        # Application logs (gitignored)
 │   ├── grafana/                 # Grafana application logs
-│   ├── alertmanager/            # AlertManager logs
-│   ├── api/                     # Backend API logs
-│   ├── nginx/                   # Nginx access and error logs
-│   └── app/                     # Custom application logs
+│   └── alertmanager/            # AlertManager logs
 ├── archives/                    # Long-term data archive (gitignored)
 ├── backups/                     # Configuration and data backups (gitignored)
+├── prometheus/targets/          # Remote VM target JSON files (auto-discovered)
 ├── loki/                        # Loki configuration
 │   └── loki-config.yaml
-├── alloy/                       # Grafana Alloy configuration (primary log collector)
+├── alloy/                       # Grafana Alloy configuration (optional log collector)
 │   └── alloy-config.alloy
-├── promtail/                    # Legacy Promtail configuration (deprecated)
-│   └── promtail-config.yaml
-├── promtail-to-alloy-config.sh  # Migration script for converting Promtail to Alloy config
+├── blackbox_exporter/           # Blackbox Exporter configuration
+│   └── blackbox_exporter.yaml
+├── exporter-centralized/        # Remote VM setup scripts
+│   └── node-exporter/setup.sh   # Deploy node-exporter on remote VMs
 ├── grafana/                     # Grafana provisioning
-│   └── provisioning/
-│       ├── dashboards/          # Auto-provisioned dashboards
-│       │   ├── dashboard.yml    # Dashboard provider config
-│       │   ├── 1860.json        # Node Exporter Full dashboard
-│       │   ├── 11076.json       # Node Exporter Server Metrics
-│       │   ├── 19908.json       # cAdvisor Docker Insights
-│       │   ├── 9628.json        # PostgreSQL Database dashboard
-│       │   ├── nginx.json       # Nginx Exporter dashboard
-│       │   ├── redis.json       # Redis monitoring dashboard
-│       │   ├── redis-streaming.json # Redis streaming dashboard
-│       │   └── alerts.json      # Alert History dashboard
-│       └── datasources/         # Auto-provisioned data sources
-│           └── datasource.yml   # Prometheus, Loki, and Redis configs
+│   ├── provisioning/
+│   │   ├── dashboards/          # Auto-provisioned dashboards (6 active)
+│   │   │   ├── dashboard.yml    # Dashboard provider config
+│   │   │   ├── 1860.json        # Node Exporter Full
+│   │   │   ├── 11076.json       # Node Exporter Server Metrics
+│   │   │   ├── 19908.json       # cAdvisor Docker Insights
+│   │   │   ├── 19792_rev6.json  # cAdvisor Full
+│   │   │   ├── 13659_rev1.json  # Blackbox Prober
+│   │   │   └── alerts.json      # Alert History
+│   │   └── datasources/         # Auto-provisioned data sources
+│   │       ├── datasource.yml   # Prometheus datasource
+│   │       └── datasource-loki.yml.disabled  # Loki (enabled by --with-logs)
+│   └── dashboards-optional/     # Dashboards for disabled exporters
+│       ├── 9628.json            # PostgreSQL (requires postgres_exporter)
+│       ├── nginx.json           # NGINX (requires nginx_exporter)
+│       ├── redis.json           # Redis (requires Redis datasource)
+│       └── redis-streaming.json # Redis Streaming
 └── scripts/                     # Maintenance and utility scripts
     ├── backup.sh                # Backup script for data and configs
     ├── restore.sh               # Restore script for disaster recovery
     ├── data-retention.sh        # Data archiving and cleanup
     └── maintenance.sh           # Combined maintenance operations
-
-### Migration and Conversion Tools
-
-- **promtail-to-alloy-config.sh**: Automated script for converting Promtail YAML configurations to Alloy format
-  ```bash
-  # Convert Promtail configuration to Alloy
-  ./promtail-to-alloy-config.sh promtail/promtail-config.yaml
-  
-  # Interactive conversion with options
-  ./promtail-to-alloy-config.sh
-  
-  # Specify custom output location
-  ./promtail-to-alloy-config.sh -o alloy/custom-config.alloy promtail-config.yaml
-  ```
 ```
 
 ## Setup and Configuration
@@ -420,13 +409,13 @@ Centralized logging capabilities through Alloy's advanced log processing:
 
 ## Pre-Configured Dashboards
 
-The monitoring stack comes with pre-configured dashboards for immediate visibility into your systems. These dashboards are automatically provisioned when Grafana starts and cover both metrics and logs.
+The monitoring stack comes with 6 pre-configured dashboards that are automatically provisioned when Grafana starts. Additional dashboards for optional services (PostgreSQL, NGINX, Redis) are available in `grafana/dashboards-optional/`.
 
 ### System Monitoring Dashboards
 
 #### 1. Node Exporter Full Dashboard (ID: 1860)
 
-This comprehensive dashboard provides detailed metrics about your host system:
+Comprehensive host system metrics:
 
 - Hardware status (CPU, memory, disk)
 - System load and resource utilization
@@ -434,95 +423,59 @@ This comprehensive dashboard provides detailed metrics about your host system:
 - Disk I/O performance metrics
 - System processes and service status
 
-Perfect for system administrators who need complete visibility into server health and performance.
+#### 2. Node Exporter Server Metrics (ID: 11076)
 
-#### 2. Node Exporter Server Metrics (ID: 11074)
-
-A streamlined dashboard focused on key server metrics:
+Streamlined server health overview:
 
 - Core system performance indicators
 - Resource utilization over time
-- Critical system metrics
-- Basic performance analysis
-
-Ideal for quick system health checks and status monitoring.
+- Quick health checks and status monitoring
 
 ### Container Monitoring
 
-#### 3. cAdvisor Docker Insights Dashboard (ID: 19908)
+#### 3. cAdvisor Docker Insights (ID: 19908)
 
-Built to visualize cAdvisor metrics for comprehensive container monitoring:
+Container resource monitoring:
 
-- Per-container CPU and memory usage trends
-- Network I/O statistics for each container
-- Disk I/O operations and storage metrics
-- Container health indicators and restart counts
+- Per-container CPU and memory usage
+- Network and disk I/O statistics
+- Container health and restart counts
+
+#### 4. cAdvisor Full (ID: 19792)
+
+Comprehensive container metrics with all scraped data:
+
+- Detailed resource breakdown per container
+- Advanced performance analysis
 - Resource limit utilization and throttling
 
-Essential for environments running multiple containers to identify resource-intensive containers and performance bottlenecks.
+### Probe Monitoring
 
-### Database Monitoring
+#### 5. Blackbox Prober (ID: 13659)
 
-#### 4. PostgreSQL Database Dashboard (ID: 9628)
+HTTP/HTTPS endpoint probing dashboard:
 
-Comprehensive database performance monitoring (available when postgres_exporter is enabled):
+- Probe success/failure rates
+- Response time monitoring
+- SSL certificate expiry tracking
 
-- Database connection metrics and active sessions
-- Query performance and slow query analysis
-- Database size, table statistics, and index usage
-- Lock monitoring and blocking query detection
-- Replication status and WAL metrics
+### Alerting
 
-Critical for database administrators monitoring PostgreSQL performance and health.
+#### 6. Alert History Dashboard
 
-### Web Server Monitoring
-
-#### 5. Nginx Exporter Dashboard (ID: 12708)
-
-Web server performance monitoring (available when nginx_exporter is enabled):
-
-- Request rate, response time, and error rate metrics
-- Active connections and connection handling
-- Upstream server status and load balancing metrics
-- HTTP status code distribution
-- Server resource utilization
-
-Perfect for monitoring web application performance and identifying bottlenecks.
-
-### Caching and Data Store Monitoring
-
-#### 6. Redis Monitoring Dashboard
-
-Real-time Redis performance monitoring (available when Redis datasource is configured):
-
-- Memory usage patterns and key expiration
-- Command execution statistics and slow commands
-- Connected clients and blocked clients
-- Hit/miss ratios for cache effectiveness
-- Replication and persistence metrics
-
-#### 7. Redis Streaming Dashboard
-
-Advanced Redis streaming and pub/sub monitoring:
-
-- Stream processing metrics and consumer groups
-- Message throughput and processing lag
-- Pub/sub channel statistics
-- Real-time data flow visualization
-
-### Alerting and Incident Management
-
-#### 8. Alert History Dashboard
-
-A custom dashboard providing comprehensive alerting overview:
+Alert status and history overview:
 
 - Current active alerts with severity classification
 - Historical alert patterns and trends
-- Alert resolution time analysis
-- Time-based incident analysis
 - Alert grouping by service and severity
 
-Provides a consolidated view of system health, ongoing incidents, and historical patterns for proactive monitoring.
+### Optional Dashboards (not auto-loaded)
+
+Available in `grafana/dashboards-optional/` — move to `grafana/provisioning/dashboards/` if you enable the corresponding exporter:
+
+- **9628.json** — PostgreSQL Database (requires `postgres_exporter`)
+- **nginx.json** — NGINX (requires `nginx_exporter`)
+- **redis.json** + **redis-streaming.json** — Redis (requires Redis datasource)
 
 ### Accessing Dashboards
 
@@ -1051,11 +1004,10 @@ Enable web server monitoring:
 
 Enable Redis metrics collection through Grafana's Redis datasource:
 
-1. **Install Redis Plugin** (already configured in Grafana):
+1. **Install Redis Plugin** (uncomment in compose.yaml):
    ```yaml
-   # Already enabled in compose files
-   environment:
-     - GF_INSTALL_PLUGINS=redis-datasource
+   # Uncomment in compose.yaml under grafana environment
+   # - GF_INSTALL_PLUGINS=redis-datasource
    ```
 
 2. **Configure Redis Datasource:**
