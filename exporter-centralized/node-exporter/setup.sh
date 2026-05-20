@@ -137,7 +137,7 @@ EOF
 print_info "Created compose.yaml for node-exporter"
 
 # --- Start node-exporter ---
-if docker compose -f compose.yaml up -d; then
+if docker compose -f compose.yaml up -d --force-recreate; then
     print_success "Node Exporter started for $VM_NAME"
 else
     print_error "Failed to start Node Exporter"
