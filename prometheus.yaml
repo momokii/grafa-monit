@@ -52,6 +52,11 @@ scrape_configs:
         target_label: app
         regex: '(.+)'
         action: replace
+    metric_relabel_configs:
+      - source_labels: [vm_name]
+        target_label: nodename
+        regex: '(.+)'
+        action: replace
 
   - job_name: 'prometheus'
     static_configs:
