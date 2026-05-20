@@ -104,6 +104,7 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.6.1
     container_name: node-exporter
+    hostname: $VM_NAME
     restart: unless-stopped
     ports:
       - "9100:9100"

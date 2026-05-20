@@ -5,6 +5,7 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.6.1
     container_name: node-exporter
+    hostname: ${HOSTNAME:-grafana-monit}
     restart: unless-stopped
     # network_mode: "host"           # for we can direct access metric from host, but not works on windows
     ports:
