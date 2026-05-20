@@ -61,6 +61,8 @@ grafana-host-monitoring/
 │   └── blackbox_exporter.yaml
 ├── exporter-centralized/        # Remote VM setup scripts
 │   └── node-exporter/setup.sh   # Deploy node-exporter on remote VMs
+├── branding/                    # Grafana custom branding (logo/favicon)
+│   └── setup.sh                 # Branding management script
 ├── targets/                     # Target management scripts
 │   ├── add-host.sh              # Add host to app group
 │   ├── remove-host.sh           # Remove host + optional ghost cleanup
@@ -219,6 +221,36 @@ Hosts are organized by app group. Each group gets one JSON file in `prometheus/t
 # Remove a host AND clean stale data from Prometheus (fixes typos immediately)
 ./targets/remove-host.sh typo-name --clean
 ```
+
+### Grafana Branding (Custom Logo & Favicon)
+
+Replace Grafana's default logo and favicon with your own branding. Uses file-based replacement via volume mounts — no reverse proxy needed.
+
+```bash
+# Set up branding with your logo and favicon
+./branding/setup.sh init --logo my-logo.svg --favicon my-favicon.png
+
+# Check current branding status
+./branding/setup.sh status
+
+# Disable branding (revert to Grafana defaults)
+./branding/setup.sh disable
+```
+
+**Supported files:**
+
+| File | Format | Where it appears |
+|---|---|---|
+| `--logo <file>` | SVG recommended, 48x48+ | Sidebar, header, top bar |
+| `--login-logo <file>` | SVG recommended | Login page |
+| `--favicon <file>` | PNG, 32x32 | Browser tab icon |
+
+If you provide `--logo` without `--login-logo`, the same logo is used for both. After changing branding, restart Grafana: `docker compose restart grafana`.
+
+**Limitations of Grafana OSS:**
+- The browser tab title ("Grafana") cannot be changed via configuration — this is an Enterprise-only feature
+- Footer text and menu logo customization are also Enterprise-only
+- A reverse proxy (NGINX) workaround exists for the tab title — see project documentation if needed
 
 ## Monitoring Architecture
 
@@ -1553,10 +1585,16 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 
 ---
 
-*Last updated: May 18, 2026*
-*Version: 4.0 - Centralized Monitoring with Optional Logging*
+*Last updated: May 20, 2026*
+*Version: 4.1 - Centralized Monitoring with Branding Support*
 
-### Recent Updates (v4.0)
+### Recent Updates (v4.1)
+- **Grafana Branding**: Custom logo and favicon via `branding/setup.sh` — toggle branding on/off
+- **Target Management Scripts**: `targets/add-host.sh`, `remove-host.sh`, `list-targets.sh` for app-grouped host management with ghost target cleanup
+- **Dashboard Cleanup**: 5 active dashboards with descriptive names, 5 optional in `dashboards-optional/`
+- **Bug Fixes**: Node-exporter setup argument parsing, healthcheck, Prometheus admin API, remote VM instance labels
+
+### Previous Updates (v4.0)
 - **Centralized Monitoring**: Monitor remote VMs by deploying only node-exporter on them
 - **Optional Log Aggregation**: Loki + Alloy moved behind Docker Compose profiles (`--profile logs`)
 - **File-Based Service Discovery**: Add remote targets via JSON files with 30s auto-discovery

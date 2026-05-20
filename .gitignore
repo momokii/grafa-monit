@@ -3,6 +3,7 @@ data
 logs
 archives
 backups
+prometheus
 
 # files
 .env
