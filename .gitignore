@@ -7,3 +7,7 @@ prometheus
 
 # files
 .env
+
+# branding — user-provided assets, only setup.sh is tracked
+branding/*
+!branding/setup.sh
