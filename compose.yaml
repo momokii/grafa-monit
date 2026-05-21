@@ -150,9 +150,13 @@ services:
     - ./logs/grafana:/var/log/grafana # parsing grafana logs
     # === BRANDING START ===
     # Custom branding — run ./branding/setup.sh init to set up, ./branding/setup.sh enable/disable to toggle.
-    # - ./branding/grafana_icon.svg:/usr/share/grafana/public/img/grafana_icon.svg:ro
-    # - ./branding/grafana_com_auth_icon.svg:/usr/share/grafana/public/img/grafana_com_auth_icon.svg:ro
-    # - ./branding/fav32.png:/usr/share/grafana/public/img/fav32.png:ro
+    # Grafana 12.x loads logos from build/ directory, not public/img/ — both paths are mounted.
+    - ./branding/grafana_icon.svg:/usr/share/grafana/public/img/grafana_icon.svg:ro
+    - ./branding/grafana_icon.svg:/usr/share/grafana/public/build/img/grafana_icon.svg:ro
+    - ./branding/grafana_icon.svg:/usr/share/grafana/public/build/static/img/grafana_icon.1e0deb6b.svg:ro
+    - ./branding/grafana_com_auth_icon.svg:/usr/share/grafana/public/img/grafana_com_auth_icon.svg:ro
+    - ./branding/grafana_com_auth_icon.svg:/usr/share/grafana/public/build/img/grafana_com_auth_icon.svg:ro
+    - ./branding/fav32.png:/usr/share/grafana/public/img/fav32.png:ro
     # - ./branding/apple-touch-icon.png:/usr/share/grafana/public/img/apple-touch-icon.png:ro
     # === BRANDING END ===
     # if using redis on docker (because the connection will directly with redis not with prometheus), make sure to have same network with redis container (UNCOMMENT the networks below if needed it)

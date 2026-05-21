@@ -226,6 +226,8 @@ Hosts are organized by app group. Each group gets one JSON file in `prometheus/t
 
 Replace Grafana's default logo and favicon with your own branding. Uses file-based replacement via volume mounts — no reverse proxy needed.
 
+> **Note:** Grafana 12.x loads the sidebar/login logos from its `build/` directory (content-hashed filenames), not `public/img/`. The setup script handles both paths automatically.
+
 ```bash
 # Set up branding with your logo and favicon
 ./branding/setup.sh init --logo my-logo.svg --favicon my-favicon.png
@@ -235,17 +237,24 @@ Replace Grafana's default logo and favicon with your own branding. Uses file-bas
 
 # Disable branding (revert to Grafana defaults)
 ./branding/setup.sh disable
+
+# After upgrading Grafana, update the hashed filename
+./branding/setup.sh refresh
 ```
 
 **Supported files:**
 
 | File | Format | Where it appears |
 |---|---|---|
-| `--logo <file>` | SVG recommended, 48x48+ | Sidebar, header, top bar |
-| `--login-logo <file>` | SVG recommended | Login page |
+| `--logo <file>` | SVG recommended, 48x48+ | Sidebar, header, login page |
+| `--login-logo <file>` | SVG recommended | Login page only |
 | `--favicon <file>` | PNG, 32x32 | Browser tab icon |
 
-If you provide `--logo` without `--login-logo`, the same logo is used for both. After changing branding, restart Grafana: `docker compose restart grafana`.
+If you provide `--logo` without `--login-logo`, the same logo is used for both. After toggling branding, **recreate** the Grafana container (a simple restart won't pick up new volume mounts):
+
+```bash
+docker compose up -d --force-recreate grafana
+```
 
 **Limitations of Grafana OSS:**
 - The browser tab title ("Grafana") cannot be changed via configuration — this is an Enterprise-only feature

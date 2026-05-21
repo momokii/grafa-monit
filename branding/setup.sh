@@ -7,8 +7,13 @@
 # and toggles the volume mounts in compose.yaml.
 #
 # Grafana OSS supports file-based branding only (no env vars for title/logo).
+# Grafana 12.x loads logos from build/ directory, so mounts cover both
+# public/img/ (loading screen) and build/ (sidebar, login page).
 # The browser tab title remains "Grafana" — changing it requires an NGINX
 # reverse proxy (documented in project memory for future implementation).
+#
+# NOTE: The hashed filename (e.g., grafana_icon.1e0deb6b.svg) changes per
+# Grafana version. After upgrading Grafana, run: ./branding/setup.sh refresh
 
 set -euo pipefail
 
@@ -30,17 +35,12 @@ COMPOSE_FILE="$(dirname "$BRANDING_DIR")/compose.yaml"
 BRANDING_MARKER_START="# === BRANDING START ==="
 BRANDING_MARKER_END="# === BRANDING END ==="
 
-# --- File mappings: compose mount path <- local branding file name
-declare -A BRANDING_FILES=(
-    ["grafana_icon.svg"]="/usr/share/grafana/public/img/grafana_icon.svg"
-    ["grafana_com_auth_icon.svg"]="/usr/share/grafana/public/img/grafana_com_auth_icon.svg"
-    ["fav32.png"]="/usr/share/grafana/public/img/fav32.png"
-    ["apple-touch-icon.png"]="/usr/share/grafana/public/img/apple-touch-icon.png"
-)
+# Base files the user provides (not the mount paths)
+BRANDING_FILES=("grafana_icon.svg" "grafana_com_auth_icon.svg" "fav32.png")
 
 # --- Helpers ---
 is_branding_enabled() {
-    grep -q "^    - ./branding/" "$COMPOSE_FILE" 2>/dev/null
+    grep -q "^    - \./branding/" "$COMPOSE_FILE" 2>/dev/null
 }
 
 validate_file() {
@@ -87,6 +87,33 @@ copy_if_provided() {
     return 0
 }
 
+# Detect the content-hashed sidebar logo filename from a running Grafana container
+detect_icon_hash() {
+    local hashed=""
+    hashed=$(docker exec grafana find /usr/share/grafana/public/build/static/img/ \
+        -name 'grafana_icon.*.svg' -type f 2>/dev/null | head -1) || true
+    if [ -n "$hashed" ]; then
+        basename "$hashed"
+    fi
+}
+
+# Update the hashed filename in compose.yaml branding section
+update_hashed_path() {
+    local hashed_name
+    hashed_name=$(detect_icon_hash)
+    if [ -z "$hashed_name" ]; then
+        print_warning "Could not detect hashed logo filename — is Grafana running?"
+        return
+    fi
+
+    local old_hash
+    old_hash=$(grep -oP 'grafana_icon\.[a-f0-9]+\.svg' "$COMPOSE_FILE" 2>/dev/null | head -1) || true
+    if [ -n "$old_hash" ] && [ "$old_hash" != "$hashed_name" ]; then
+        sed -i "s/${old_hash}/${hashed_name}/g" "$COMPOSE_FILE"
+        print_info "Updated hashed logo: ${old_hash} -> ${hashed_name}"
+    fi
+}
+
 # --- Commands ---
 cmd_help() {
     cat << 'HELP'
@@ -102,28 +129,25 @@ Commands:
   enable   Enable branding volume mounts in compose.yaml
   disable  Disable branding, revert to Grafana defaults
   status   Show current branding status
+  refresh  Update hashed filename after Grafana version upgrade
 
 Options for init:
-  --logo <file>        Main logo — sidebar, header (SVG, ~48x48 or larger)
-  --login-logo <file>  Login page logo (SVG, same size as main logo)
+  --logo <file>        Main logo — sidebar, header, login (SVG, ~48x48+)
+  --login-logo <file>  Login page logo (SVG, same as main logo)
   --favicon <file>     Browser tab icon (PNG, 32x32)
-
-File naming convention (in branding/ directory):
-  grafana_icon.svg            Main logo (sidebar, top bar)
-  grafana_com_auth_icon.svg   Login page logo
-  fav32.png                   Browser favicon (32x32)
-  apple-touch-icon.png        Apple touch icon (180x180 recommended)
 
 Notes:
   - SVG is recommended for logos (scales without quality loss)
+  - If --logo is provided without --login-logo, the same file is used for both
   - Grafana OSS does not support changing the browser tab title via config
-  - Changes take effect after restarting Grafana: docker compose restart grafana
+  - Changes require container recreation: docker compose up -d --force-recreate grafana
 
 Examples:
   ./branding/setup.sh init --logo my-logo.svg --favicon my-favicon.png
   ./branding/setup.sh enable
   ./branding/setup.sh disable
   ./branding/setup.sh status
+  ./branding/setup.sh refresh  # after Grafana upgrade
 HELP
 }
 
@@ -140,7 +164,7 @@ cmd_status() {
 
     echo ""
     echo "Branding files:"
-    for name in "${!BRANDING_FILES[@]}"; do
+    for name in "${BRANDING_FILES[@]}"; do
         if [ -f "$BRANDING_DIR/$name" ]; then
             local size
             size=$(stat -f%z "$BRANDING_DIR/$name" 2>/dev/null || stat -c%s "$BRANDING_DIR/$name" 2>/dev/null || echo "?")
@@ -150,8 +174,14 @@ cmd_status() {
         fi
     done
 
+    local hashed
+    hashed=$(detect_icon_hash)
+    if [ -n "$hashed" ]; then
+        print_info "  Detected Grafana build hash: $hashed"
+    fi
+
     echo ""
-    echo "To apply changes: docker compose restart grafana"
+    echo "To apply changes: docker compose up -d --force-recreate grafana"
 }
 
 cmd_init() {
@@ -231,12 +261,15 @@ cmd_init() {
         exit 1
     fi
 
+    # Update hashed filename if Grafana is running
+    update_hashed_path
+
     # Enable branding in compose.yaml
     cmd_enable
 
     echo ""
-    print_success "Branding files ready. Restart Grafana to apply:"
-    print_info "  docker compose restart grafana"
+    print_success "Branding files ready. Recreate Grafana to apply:"
+    print_info "  docker compose up -d --force-recreate grafana"
 }
 
 cmd_enable() {
@@ -245,30 +278,32 @@ cmd_enable() {
         exit 1
     fi
 
-    # Check if branding section already exists
-    if grep -q "$BRANDING_MARKER_START" "$COMPOSE_FILE"; then
-        # Uncomment the branding volume lines: "    # - ./branding/" -> "    - ./branding/"
-        sed -i "/$BRANDING_MARKER_START/,/$BRANDING_MARKER_END/ s/^    # - \.\/branding\//    - .\/branding\//" "$COMPOSE_FILE"
-        print_success "Branding enabled in compose.yaml"
-    else
+    if ! grep -q "$BRANDING_MARKER_START" "$COMPOSE_FILE"; then
         print_error "Branding section not found in compose.yaml"
         print_info "Add the branding volume mounts manually (see compose.yaml comments)"
         exit 1
     fi
 
-    # Verify at least one branding file exists
-    local has_files=false
-    for name in "${!BRANDING_FILES[@]}"; do
+    # Update hashed filename
+    update_hashed_path
+
+    # Uncomment lines for files that exist in branding/
+    local enabled=0
+    for name in "${BRANDING_FILES[@]}"; do
         if [ -f "$BRANDING_DIR/$name" ]; then
-            has_files=true
-            break
+            # Match any line referencing this branding file (handles multiple mount targets)
+            sed -i "/$BRANDING_MARKER_START/,/$BRANDING_MARKER_END/ s|^    # - \.\/branding\/${name}[^:]*:|    - ./branding/${name}:|" "$COMPOSE_FILE"
+            enabled=$((enabled + 1))
         fi
     done
 
-    if [ "$has_files" = false ]; then
-        print_warning "No branding files found in branding/ directory"
+    if [ "$enabled" -eq 0 ]; then
+        print_warning "No branding files found — nothing to enable"
         print_info "Run './branding/setup.sh init --logo <file>' to add your logo"
+        return 0
     fi
+
+    print_success "Branding enabled in compose.yaml (${enabled} file(s))"
 }
 
 cmd_disable() {
@@ -282,10 +317,17 @@ cmd_disable() {
         return 0
     fi
 
-    # Comment out the branding volume lines: "    - ./branding/" -> "    # - ./branding/"
-    sed -i "/$BRANDING_MARKER_START/,/$BRANDING_MARKER_END/ s/^    - \.\/branding\//    # - .\/branding\//" "$COMPOSE_FILE"
+    # Comment out all branding volume lines between markers
+    sed -i "/$BRANDING_MARKER_START/,/$BRANDING_MARKER_END/ s|^    - \.\/branding\/|    # - ./branding/|" "$COMPOSE_FILE"
     print_success "Branding disabled in compose.yaml"
-    print_info "Restart Grafana to revert to defaults: docker compose restart grafana"
+    print_info "Recreate Grafana to revert: docker compose up -d --force-recreate grafana"
+}
+
+cmd_refresh() {
+    print_info "Checking for updated Grafana build hash..."
+    update_hashed_path
+    print_success "Done. If the hash changed, recreate Grafana:"
+    print_info "  docker compose up -d --force-recreate grafana"
 }
 
 # --- Main ---
@@ -307,6 +349,9 @@ case "$COMMAND" in
         ;;
     disable)
         cmd_disable
+        ;;
+    refresh)
+        cmd_refresh
         ;;
     *)
         print_error "Unknown command: $COMMAND"
