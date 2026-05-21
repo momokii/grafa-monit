@@ -59,6 +59,18 @@ validate_file() {
         print_warning "Expected PNG file, got .$ext — may not render correctly"
     fi
 
+    # Verify actual file content matches expected type (not just extension)
+    local actual_type
+    actual_type=$(file -b "$file" 2>/dev/null || echo "unknown")
+    if [ "$expected_ext" = "png" ]; then
+        if echo "$actual_type" | grep -qi "svg\|text\|xml"; then
+            print_error "$file is $actual_type, not a real PNG — browsers require actual PNG data for favicons"
+            print_info "Convert with: rsvg-convert -w 32 -h 32 input.svg -o output.png"
+            print_info "Or: convert input.svg -resize 32x32 output.png"
+            return 1
+        fi
+    fi
+
     local size
     size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
     if [ "$size" -eq 0 ]; then
@@ -134,11 +146,13 @@ Commands:
 Options for init:
   --logo <file>        Main logo — sidebar, header, login (SVG, ~48x48+)
   --login-logo <file>  Login page logo (SVG, same as main logo)
-  --favicon <file>     Browser tab icon (PNG, 32x32)
+  --favicon <file>     Browser tab icon (PNG, 32x32 — must be actual PNG data, not SVG)
 
 Notes:
   - SVG is recommended for logos (scales without quality loss)
+  - Favicon MUST be real PNG data — SVG files renamed to .png will be rejected
   - If --logo is provided without --login-logo, the same file is used for both
+  - init automatically enables branding in compose.yaml
   - Grafana OSS does not support changing the browser tab title via config
   - Changes require container recreation: docker compose up -d --force-recreate grafana
 

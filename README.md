@@ -229,11 +229,14 @@ Replace Grafana's default logo and favicon with your own branding. Uses file-bas
 > **Note:** Grafana 12.x loads the sidebar/login logos from its `build/` directory (content-hashed filenames), not `public/img/`. The setup script handles both paths automatically.
 
 ```bash
-# Set up branding with your logo and favicon
+# Set up branding with your logo and favicon (auto-enables in compose.yaml)
 ./branding/setup.sh init --logo my-logo.svg --favicon my-favicon.png
 
 # Check current branding status
 ./branding/setup.sh status
+
+# Re-enable branding after manually editing files
+./branding/setup.sh enable
 
 # Disable branding (revert to Grafana defaults)
 ./branding/setup.sh disable
@@ -248,7 +251,9 @@ Replace Grafana's default logo and favicon with your own branding. Uses file-bas
 |---|---|---|
 | `--logo <file>` | SVG recommended, 48x48+ | Sidebar, header, login page |
 | `--login-logo <file>` | SVG recommended | Login page only |
-| `--favicon <file>` | PNG, 32x32 | Browser tab icon |
+| `--favicon <file>` | **PNG only**, 32x32 | Browser tab icon |
+
+> **Important:** The favicon must be actual PNG data, not an SVG file renamed to `.png`. The script validates file content and will reject mismatched types. Convert SVG to PNG with: `rsvg-convert -w 32 -h 32 logo.svg -o favicon.png`
 
 If you provide `--logo` without `--login-logo`, the same logo is used for both. After toggling branding, **recreate** the Grafana container (a simple restart won't pick up new volume mounts):
 
