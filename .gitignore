@@ -11,3 +11,7 @@ prometheus
 # branding — user-provided assets, only setup.sh is tracked
 branding/*
 !branding/setup.sh
+
+# alerts — generated config contains credentials, only templates/scripts tracked
+alerts/config.yml
+alertmanager.yml

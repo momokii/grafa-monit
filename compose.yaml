@@ -181,6 +181,7 @@ services:
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/config.yml
       - ./logs/alertmanager:/alertmanager  # save log on folder host
+      - ./alerts/notify.tmpl:/etc/alertmanager/templates/notify.tmpl:ro
     command:
       - '--config.file=/etc/alertmanager/config.yml'
       - '--storage.path=/alertmanager'

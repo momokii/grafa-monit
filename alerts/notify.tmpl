@@ -1,0 +1,78 @@
+{{- /* Telegram notification template */ -}}
+{{ define "telegram.default.message" }}
+{{ if eq .Status "firing" }}
+🔥 *ALERT FIRING* 🔥
+{{ else }}
+✅ *ALERT RESOLVED*
+{{ end }}
+{{ range .Alerts }}
+*{{ .Labels.alertname }}* — {{ .Labels.severity }}
+• Host: `{{ .Labels.instance }}{{ if .Labels.vm_name }} ({{ .Labels.vm_name }}){{ end }}`
+{{- if .Labels.app }}• App: `{{ .Labels.app }}`{{ end }}
+{{- if .Labels.environment }}• Env: `{{ .Labels.environment }}`{{ end }}
+• {{ .Annotations.summary }}
+• Value: `{{ .Annotations.value }}`
+• Since: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+{{ end }}
+{{ end }}
+
+{{- /* Slack / Discord notification template */ -}}
+{{ define "slack.default.title" }}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+{{ end }}
+
+{{ define "slack.default.text" }}
+{{ range .Alerts }}
+*{{ .Labels.alertname }}* ({{ .Labels.severity }})
+• Host: `{{ .Labels.instance }}`
+{{- if .Labels.app }} • App: `{{ .Labels.app }}`{{ end }}
+{{- if .Labels.environment }} • Env: `{{ .Labels.environment }}`{{ end }}
+• {{ .Annotations.summary }}
+• Value: `{{ .Annotations.value }}`
+• Since: {{ .StartsAt.Format "2006-01-02 15:04" }}
+
+{{ end }}
+{{ end }}
+
+{{- /* Email notification template (HTML) */ -}}
+{{ define "email.default.html" }}
+<table style="border-collapse: collapse; width: 100%; font-family: sans-serif;">
+  <tr>
+    <td style="padding: 12px; background: {{ if eq .Status "firing" }}#e74c3c{{ else }}#2ecc71{{ end }}; color: white; font-size: 16px; font-weight: bold;">
+      {{ if eq .Status "firing" }}FIRING{{ else }}RESOLVED{{ end }} — {{ .CommonLabels.alertname }}
+    </td>
+  </tr>
+  {{ range .Alerts }}
+  <tr>
+    <td style="padding: 12px; border: 1px solid #ddd;">
+      <table style="width: 100%;">
+        <tr><td style="font-weight: bold; width: 100px;">Alert</td><td>{{ .Labels.alertname }}</td></tr>
+        <tr><td style="font-weight: bold;">Severity</td><td>{{ .Labels.severity }}</td></tr>
+        <tr><td style="font-weight: bold;">Host</td><td>{{ .Labels.instance }}</td></tr>
+        {{- if .Labels.app }}
+        <tr><td style="font-weight: bold;">App</td><td>{{ .Labels.app }}</td></tr>
+        {{- end }}
+        {{- if .Labels.environment }}
+        <tr><td style="font-weight: bold;">Environment</td><td>{{ .Labels.environment }}</td></tr>
+        {{- end }}
+        <tr><td style="font-weight: bold;">Summary</td><td>{{ .Annotations.summary }}</td></tr>
+        <tr><td style="font-weight: bold;">Value</td><td>{{ .Annotations.value }}</td></tr>
+        <tr><td style="font-weight: bold;">Since</td><td>{{ .StartsAt.Format "2006-01-02 15:04:05" }}</td></tr>
+      </table>
+    </td>
+  </tr>
+  {{ end }}
+</table>
+{{ end }}
+
+{{- /* Email subject */ -}}
+{{ define "email.default.subject" }}
+[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} — {{ .CommonLabels.instance }}
+{{ end }}
+
+{{- /* Webhook (Discord via webhook_config) fallback */ -}}
+{{ define "webhook.default.message" }}
+{{ if eq .Status "firing" }}FIRING{{ else }}RESOLVED{{ end }}: {{ .CommonLabels.alertname }}
+{{ range .Alerts }}{{ .Labels.alertname }} ({{ .Labels.severity }}) — {{ .Labels.instance }}: {{ .Annotations.summary }} [{{ .Annotations.value }}]
+{{ end }}
+{{ end }}

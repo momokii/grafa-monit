@@ -1,38 +1,87 @@
 groups:
+  # === Host alerts (apply to all node-exporter targets: local + remote VMs) ===
   - name: host_alerts
     rules:
-      - alert: InstanceDown
-        expr: up{job="node-exporter"} == 0
+      - alert: HostDown
+        expr: up{job=~"node-exporter|remote-node-exporters"} == 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Node Exporter instance down"
-          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 2 minutes."
+          summary: "Host {{ $labels.instance }} is unreachable"
+          value: "{{ $value }}"
 
-      - alert: HighCPULoad
-        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 80
-        for: 1m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High CPU load (instance {{ $labels.instance }})"
-          description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
-
-      - alert: HighMemoryLoad
-        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 80
-        for: 1m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory load (instance {{ $labels.instance }})"
-          description: "Memory usage is > 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
-          
-      - alert: HighDiskUsage
-        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 85
+      - alert: HighCPUWarning
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "High disk usage (instance {{ $labels.instance }})"
-          description: "Disk usage is > 85%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+          summary: "CPU usage high on {{ $labels.instance }}"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighCPUCritical
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU usage critical on {{ $labels.instance }}"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighMemoryWarning
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage high on {{ $labels.instance }}"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighMemoryCritical
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memory usage critical on {{ $labels.instance }}"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighDiskUsageWarning
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|nsfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|nsfs|overlay"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage high on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighDiskUsageCritical
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|nsfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|nsfs|overlay"}) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk usage critical on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighDiskIO
+        expr: avg by (instance) (irate(node_disk_io_time_seconds_total[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk I/O wait high on {{ $labels.instance }}"
+          value: "{{ $value | printf \"%.1f\" }}%"
+
+  # === Container alerts (local cAdvisor only) ===
+  - name: container_alerts
+    rules:
+      - alert: ContainerRestarted
+        expr: increase(container_restart_count{container_label_com_docker_compose_service!=""}[10m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.container_label_com_docker_compose_service }} restarting repeatedly"
+          value: "{{ $value }} restarts in 10m"

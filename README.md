@@ -63,6 +63,9 @@ grafana-host-monitoring/
 │   └── node-exporter/setup.sh   # Deploy node-exporter on remote VMs
 ├── branding/                    # Grafana custom branding (logo/favicon)
 │   └── setup.sh                 # Branding management script
+├── alerts/                      # Alert configuration
+│   ├── setup.sh                 # Alert setup wizard and management
+│   └── notify.tmpl              # AlertManager notification templates
 ├── targets/                     # Target management scripts
 │   ├── add-host.sh              # Add host to app group
 │   ├── remove-host.sh           # Remove host + optional ghost cleanup
@@ -1211,110 +1214,126 @@ This provides necessary system access while maintaining security through:
 
 ## Alerting and Notifications
 
-### Alert Configuration
+### Quick Start
 
-Alert rules are defined in `alerts.yml` and processed by Prometheus. The system includes pre-configured alerts for common issues:
-
-#### System-Level Alerts
-- **InstanceDown**: Triggers when Node Exporter becomes unavailable
-- **HighCPULoad**: Alerts when CPU usage exceeds 80% for more than 1 minute
-- **HighMemoryLoad**: Warns when memory usage exceeds 80%
-- **HighDiskUsage**: Alerts when disk usage exceeds 85% for 5 minutes
-
-#### Custom Alert Examples
-```yaml
-# Example: Custom application alert
-- alert: HighErrorRate
-  expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
-  for: 2m
-  labels:
-    severity: warning
-  annotations:
-    summary: "High error rate detected"
-    description: "Error rate is {{ $value }} errors per second"
-
-# Example: Log-based alert (requires Loki)
-- alert: TooManyLogErrors
-  expr: rate({job="backend-api"} |= "ERROR"[5m]) > 0.5
-  for: 1m
-  labels:
-    severity: critical
-  annotations:
-    summary: "High error log rate"
-    description: "Application is logging errors at {{ $value }} per second"
-```
-
-### AlertManager Configuration
-
-AlertManager handles alert routing and notifications. The default configuration uses a null receiver, but can be extended:
-
-#### Notification Channels
-```yaml
-# Example: Email notifications
-receivers:
-- name: 'email-notifications'
-  email_configs:
-  - to: 'admin@example.com'
-    from: 'monitoring@example.com'
-    subject: 'Alert: {{ .GroupLabels.alertname }}'
-    body: |
-      {{ range .Alerts }}
-      Alert: {{ .Annotations.summary }}
-      Description: {{ .Annotations.description }}
-      {{ end }}
-
-# Example: Slack notifications
-- name: 'slack-notifications'
-  slack_configs:
-  - api_url: 'YOUR_SLACK_WEBHOOK_URL'
-    channel: '#monitoring'
-    title: 'Alert: {{ .GroupLabels.alertname }}'
-    text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
-```
-
-#### Alert Routing
-```yaml
-# Route critical alerts immediately, warnings with delays
-route:
-  group_by: ['alertname', 'cluster', 'service']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'default-receiver'
-  routes:
-  - match:
-      severity: critical
-    receiver: 'critical-alerts'
-    group_wait: 0s
-  - match:
-      severity: warning
-    receiver: 'warning-alerts'
-    group_wait: 30s
-```
-
-### Alert Testing and Validation
+Configure alerts and notifications with one command — no Grafana UI needed:
 
 ```bash
-# Test alert rules syntax
-promtool check rules alerts.yml
-
-# Test AlertManager configuration
-promtool check config alertmanager.yml
-
-# Manually trigger test alert
-curl -X POST http://localhost:9093/api/v1/alerts -H "Content-Type: application/json" -d '[
-  {
-    "labels": {
-      "alertname": "TestAlert",
-      "service": "test",
-      "severity": "warning"
-    },
-    "annotations": {
-      "summary": "This is a test alert"
-    }
-  }
-]'
+./alerts/setup.sh init
 ```
+
+The interactive wizard will walk you through:
+1. **Notification channels** — Discord, Telegram, Slack, or Email (pick one or more)
+2. **Alert thresholds** — CPU, memory, disk, host-down, container restarts (sensible defaults)
+3. **Routing** — which channels get warnings vs critical alerts
+4. **Timing** — notification frequency and grouping
+
+After setup, restart the services:
+```bash
+docker compose restart prometheus
+docker compose up -d --force-recreate alertmanager
+```
+
+### Managing Alerts
+
+```bash
+# First-time setup (interactive wizard)
+./alerts/setup.sh init
+
+# Regenerate configs after editing alerts/config.yml
+./alerts/setup.sh generate
+
+# Add or update a notification channel
+./alerts/setup.sh add-channel
+
+# Add a custom alert rule (prompts for PromQL expression)
+./alerts/setup.sh add-rule
+
+# Show current configuration and service status
+./alerts/setup.sh status
+
+# Send a test notification to verify channels work
+./alerts/setup.sh test
+
+# Show all commands
+./alerts/setup.sh help
+```
+
+### Default Alert Rules
+
+9 rules included out of the box, covering both local and remote VMs:
+
+| Rule | Severity | Condition | Default Threshold |
+|------|----------|-----------|-------------------|
+| HostDown | Critical | Host unreachable | 2 minutes |
+| HighCPUWarning | Warning | CPU usage high | > 80% for 5m |
+| HighCPUCritical | Critical | CPU usage critical | > 95% for 5m |
+| HighMemoryWarning | Warning | Memory usage high | > 80% for 5m |
+| HighMemoryCritical | Critical | Memory usage critical | > 95% for 5m |
+| HighDiskUsageWarning | Warning | Disk usage high | > 85% for 5m |
+| HighDiskUsageCritical | Critical | Disk usage critical | > 95% for 5m |
+| HighDiskIO | Warning | Disk I/O wait high | > 10% for 5m |
+| ContainerRestarted | Warning | Container crash loop | > 5 restarts in 10m |
+
+All host-level rules apply to both local node-exporter and remote VMs automatically. Container rules only fire locally (cAdvisor).
+
+### How It Works
+
+```
+Prometheus scrapes metrics → evaluates alert rules (alerts.yml)
+  → fires alerts to AlertManager (alertmanager.yml)
+    → routes by severity + app group
+      → sends to configured channels (Discord/Telegram/Slack/Email)
+```
+
+### Supported Notification Channels
+
+| Channel | What you need |
+|---------|--------------|
+| Discord | Webhook URL (Server Settings → Integrations → Webhooks) |
+| Telegram | Bot token (from @BotFather) + Chat ID |
+| Slack | Webhook URL (api.slack.com/messaging/webhooks) |
+| Email | SMTP server, credentials, recipient address |
+
+### Changing Thresholds
+
+Edit `alerts/config.yml` and regenerate:
+```bash
+# Edit the threshold values, then:
+./alerts/setup.sh generate
+docker compose restart prometheus
+```
+
+### Per-App Routing
+
+By default, all alerts go to the channels you configured. To route specific app groups to different channels, edit `alerts/config.yml`:
+
+```yaml
+# Under the routing section, add:
+my-app-A:
+  channels: [discord, telegram]
+
+my-app-B:
+  channels: [discord]
+```
+
+Then run `./alerts/setup.sh generate` to apply.
+
+### Custom Alert Rules
+
+Add your own rules without editing YAML directly:
+```bash
+./alerts/setup.sh add-rule
+```
+
+The script will prompt for alert name, PromQL expression, severity, and duration — then append the rule to `alerts.yml`.
+
+### Alert Flow
+
+- **Thresholds** are stored in `alerts/config.yml` (gitignored — may contain credentials)
+- **Prometheus rules** are generated to `alerts.yml` (tracked in git — no secrets)
+- **AlertManager config** is generated to `alertmanager.yml` (gitignored — contains webhook URLs/tokens)
+- **Notification templates** are in `alerts/notify.tmpl` (tracked — Go templates for clean messages)
 
 ## Troubleshooting
 
@@ -1599,10 +1618,18 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 
 ---
 
-*Last updated: May 20, 2026*
-*Version: 4.1 - Centralized Monitoring with Branding Support*
+*Last updated: May 21, 2026*
+*Version: 4.2 - Centralized Monitoring with Alerting*
 
-### Recent Updates (v4.1)
+### Recent Updates (v4.2)
+- **Script-Based Alerting**: `alerts/setup.sh init` — interactive wizard for alert rules and notification channels
+- **9 Default Alert Rules**: Host-down, CPU, memory, disk, disk IO, container restarts (covers local + remote VMs)
+- **4 Notification Channels**: Discord, Telegram, Slack, Email — configure via guided setup, no YAML editing
+- **Per-App Routing**: Route specific app group alerts to different channels
+- **Custom Alert Rules**: `./alerts/setup.sh add-rule` to add PromQL-based rules without editing YAML
+- **Test Notifications**: `./alerts/setup.sh test` to verify channels are working
+
+### Previous Updates (v4.1)
 - **Grafana Branding**: Custom logo and favicon via `branding/setup.sh` — toggle branding on/off
 - **Target Management Scripts**: `targets/add-host.sh`, `remove-host.sh`, `list-targets.sh` for app-grouped host management with ghost target cleanup
 - **Dashboard Cleanup**: 5 active dashboards with descriptive names, 5 optional in `dashboards-optional/`
