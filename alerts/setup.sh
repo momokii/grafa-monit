@@ -1016,7 +1016,7 @@ EOF
 )
 
     local response
-    response=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:9093/api/v1/alerts" \
+    response=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:9093/api/v2/alerts" \
         -H "Content-Type: application/json" \
         -d "$test_payload" 2>&1) || true
 
