@@ -49,12 +49,17 @@ get_config() {
     fi
 }
 
-# Read a list value from config.yml: get_list_config "key" → "item1 item2"
+# Read a list value from config.yml: get_list_config "key" [default]
 get_list_config() {
     local key="$1"
+    local default="${2:-}"
     local value
     value=$(grep "^${key}:" "$CONFIG_FILE" 2>/dev/null | head -1 | sed "s/^${key}: *//" | tr -d '[]' | sed 's/,/ /g')
-    echo "$value"
+    if [ -n "$value" ]; then
+        echo "$value"
+    else
+        echo "$default"
+    fi
 }
 
 # Check if a channel type is enabled in config
@@ -280,15 +285,15 @@ generate_alertmanager() {
 
     if [ -z "$default_channels" ] && [ -z "$critical_channels" ]; then
         print_warning "No notification channels configured — generating null receiver"
-        cat > "$ALERTMANAGER_FILE" << 'EOF'
+        cat > "$ALERTMANAGER_FILE" << EOF
 global:
   resolve_timeout: 5m
 
 route:
   group_by: ['alertname', 'app', 'environment']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 4h
+  group_wait: ${group_wait}
+  group_interval: ${group_interval}
+  repeat_interval: ${repeat_interval}
   receiver: 'null'
 
 receivers:
@@ -298,36 +303,25 @@ EOF
         return
     fi
 
-    # Build receiver configs
-    local default_receivers=""
-    local critical_receivers=""
-
-    for ch in $default_channels; do
-        default_receivers="$(build_channel_config "$ch")"
-    done
-
-    for ch in $critical_channels; do
-        # Avoid duplicating channels already in default
-        if ! echo " $default_channels " | grep -q " $ch "; then
-            critical_receivers+="$(build_channel_config "$ch")"
-        fi
-    done
-
-    # Build combined receiver configs for both default and critical
+    # Build receiver configs for default and critical
     local all_default_receivers=""
     local all_critical_receivers=""
 
     for ch in $default_channels; do
-        all_default_receivers+="$(build_channel_config "$ch")"
+        all_default_receivers+="$(build_channel_config "$ch")
+"
     done
 
     for ch in $critical_channels; do
-        all_critical_receivers+="$(build_channel_config "$ch")"
+        all_critical_receivers+="$(build_channel_config "$ch")
+"
     done
 
-    # Per-app routes
+    # Per-app routes and their receiver definitions
     local app_routes=""
+    local app_receivers=""
     app_routes=$(build_app_routes)
+    app_receivers=$(build_app_receivers)
 
     cat > "$ALERTMANAGER_FILE" << EOF
 global:
@@ -354,6 +348,7 @@ receivers:
 ${all_default_receivers}
   - name: 'critical'
 ${all_critical_receivers}
+${app_receivers}
 EOF
 
     print_success "Generated $ALERTMANAGER_FILE"
@@ -456,6 +451,36 @@ build_app_routes() {
                 echo "    - match:"
                 echo "        app: '${key}'"
                 echo "      receiver: '${receiver_name}'"
+            fi
+        fi
+    done <<< "$config_content"
+}
+
+# Build per-app receiver blocks (companion to build_app_routes)
+build_app_receivers() {
+    local config_content
+    config_content=$(cat "$CONFIG_FILE" 2>/dev/null || echo "")
+
+    local in_routing=false
+    while IFS= read -r line; do
+        if echo "$line" | grep -q "^routing:"; then
+            in_routing=true
+            continue
+        fi
+        if [ "$in_routing" = true ] && echo "$line" | grep -q "^  [a-z_]*:$"; then
+            local key
+            key=$(echo "$line" | sed 's/^  //; s/:$//')
+            case "$key" in
+                default_channels|critical_channels) continue ;;
+            esac
+            local app_channels
+            app_channels=$(echo "$config_content" | grep -A5 "^  ${key}:" | grep "channels:" | head -1 | sed 's/.*channels: *//' | tr -d '[]' | sed 's/,/ /g')
+            if [ -n "$app_channels" ]; then
+                local receiver_name="app-${key}"
+                echo "  - name: '${receiver_name}'"
+                for ch in $app_channels; do
+                    echo "$(build_channel_config "$ch")"
+                done
             fi
         fi
     done <<< "$config_content"
@@ -839,7 +864,9 @@ RULE
 
     # Insert before the container_alerts group (or at end)
     if grep -q "container_alerts" "$ALERTS_FILE"; then
-        sed -i "/^  # === Container alerts/i\\${rule_block}" "$ALERTS_FILE"
+        local tmp_file
+        tmp_file=$(mktemp)
+        awk -v rule="$rule_block" '/^  # === Container alerts/{print rule} {print}' "$ALERTS_FILE" > "$tmp_file" && mv "$tmp_file" "$ALERTS_FILE"
     else
         echo "$rule_block" >> "$ALERTS_FILE"
     fi
@@ -882,8 +909,11 @@ cmd_status() {
 
         echo ""
         echo "Routing:"
-        echo "  Default channels: $(get_list_config default_channels 'none')"
-        echo "  Critical channels: $(get_list_config critical_channels 'none')"
+        local def_ch crit_ch
+        def_ch=$(get_list_config default_channels)
+        crit_ch=$(get_list_config critical_channels)
+        echo "  Default channels: ${def_ch:-none}"
+        echo "  Critical channels: ${crit_ch:-none}"
 
         echo ""
         echo "Timing:"
