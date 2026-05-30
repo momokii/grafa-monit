@@ -185,8 +185,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Host {{ \\\$labels.instance }} is unreachable"
-          value: "{{ \\\$value }}"
+          summary: "Host {{ \$labels.instance }} is unreachable"
+          value: "{{ \$value }}"
 
       - alert: HighCPUWarning
         expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_warn}
@@ -194,8 +194,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "CPU usage high on {{ \\\$labels.instance }}"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "CPU usage high on {{ \$labels.instance }}"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
       - alert: HighCPUCritical
         expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_crit}
@@ -203,8 +203,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "CPU usage critical on {{ \\\$labels.instance }}"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "CPU usage critical on {{ \$labels.instance }}"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
       - alert: HighMemoryWarning
         expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > ${mem_warn}
@@ -212,8 +212,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Memory usage high on {{ \\\$labels.instance }}"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "Memory usage high on {{ \$labels.instance }}"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
       - alert: HighMemoryCritical
         expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > ${mem_crit}
@@ -221,8 +221,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Memory usage critical on {{ \\\$labels.instance }}"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "Memory usage critical on {{ \$labels.instance }}"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
       - alert: HighDiskUsageWarning
         expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|nsfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|nsfs|overlay"}) * 100 > ${disk_warn}
@@ -230,8 +230,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Disk usage high on {{ \\\$labels.instance }} ({{ \\\$labels.mountpoint }})"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "Disk usage high on {{ \$labels.instance }} ({{ \$labels.mountpoint }})"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
       - alert: HighDiskUsageCritical
         expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|nsfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|nsfs|overlay"}) * 100 > ${disk_crit}
@@ -239,8 +239,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Disk usage critical on {{ \\\$labels.instance }} ({{ \\\$labels.mountpoint }})"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "Disk usage critical on {{ \$labels.instance }} ({{ \$labels.mountpoint }})"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
       - alert: HighDiskIO
         expr: avg by (instance) (irate(node_disk_io_time_seconds_total[5m])) * 100 > ${diskio_warn}
@@ -248,8 +248,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Disk I/O wait high on {{ \\\$labels.instance }}"
-          value: "{{ \\\$value | printf \\"%.1f\\" }}%"
+          summary: "Disk I/O wait high on {{ \$labels.instance }}"
+          value: "{{ \$value | printf \\"%.1f\\" }}%"
 
   # === Container alerts (local cAdvisor only) ===
   - name: container_alerts
@@ -260,8 +260,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Container {{ \\\$labels.container_label_com_docker_compose_service }} restarting repeatedly"
-          value: "{{ \\\$value }} restarts in ${container_dur}"
+          summary: "Container {{ \$labels.container_label_com_docker_compose_service }} restarting repeatedly"
+          value: "{{ \$value }} restarts in ${container_dur}"
 EOF
 
     print_success "Generated $ALERTS_FILE"
@@ -833,7 +833,7 @@ cmd_add_rule() {
           severity: ${severity}
         annotations:
           summary: "${summary}"
-          value: "{{ \\\$value }}"
+          value: "{{ \$value }}"
 RULE
 )
 
