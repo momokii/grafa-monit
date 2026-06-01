@@ -12,6 +12,7 @@ prometheus
 branding/*
 !branding/setup.sh
 
-# alerts — generated config contains credentials, only templates/scripts tracked
+# alerts — generated config contains credentials/thresholds, only templates/scripts tracked
 alerts/config.yml
+alerts.yml
 alertmanager.yml
