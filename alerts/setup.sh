@@ -75,9 +75,9 @@ prompt() {
     local question="$1"
     local default="${2:-}"
     if [ -n "$default" ]; then
-        printf "%s [%s]: " "$question" "$default"
+        printf "%s [%s]: " "$question" "$default" >&2
     else
-        printf "%s: " "$question"
+        printf "%s: " "$question" >&2
     fi
     read -r answer
     if [ -z "$answer" ]; then
