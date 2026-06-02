@@ -369,6 +369,8 @@ build_channel_config() {
                 fi
                 echo "    slack_configs:"
                 echo "      - api_url: '${url}'"
+                echo "        send_resolved: true"
+                echo "        title_link: ''"
                 echo "        title: '{{ template \"slack.default.title\" . }}'"
                 echo "        text: '{{ template \"slack.default.text\" . }}'"
                 echo "        color: '{{ if eq .Status \"firing\" }}{{ if eq .CommonLabels.severity \"critical\" }}danger{{ else }}warning{{ end }}{{ else }}good{{ end }}'"
@@ -390,6 +392,7 @@ build_channel_config() {
             if [ -n "$url" ]; then
                 echo "    slack_configs:"
                 echo "      - api_url: '${url}'"
+                echo "        send_resolved: true"
                 echo "        title: '{{ template \"slack.default.title\" . }}'"
                 echo "        text: '{{ template \"slack.default.text\" . }}'"
                 echo "        color: '{{ if eq .Status \"firing\" }}{{ if eq .CommonLabels.severity \"critical\" }}danger{{ else }}warning{{ end }}{{ else }}good{{ end }}'"
