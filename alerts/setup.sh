@@ -192,6 +192,7 @@ groups:
         annotations:
           summary: "Host {{ \$labels.instance }} is unreachable"
           value: "{{ \$value }}"
+          threshold: "unreachable for ${host_down_dur}"
 
       - alert: HighCPUWarning
         expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_warn}
@@ -201,6 +202,7 @@ groups:
         annotations:
           summary: "CPU usage high on {{ \$labels.instance }}"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${cpu_warn}% for ${cpu_dur}"
 
       - alert: HighCPUCritical
         expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_crit}
@@ -210,6 +212,7 @@ groups:
         annotations:
           summary: "CPU usage critical on {{ \$labels.instance }}"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${cpu_crit}% for ${cpu_dur}"
 
       - alert: HighMemoryWarning
         expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > ${mem_warn}
@@ -219,6 +222,7 @@ groups:
         annotations:
           summary: "Memory usage high on {{ \$labels.instance }}"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${mem_warn}% for ${mem_dur}"
 
       - alert: HighMemoryCritical
         expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > ${mem_crit}
@@ -228,6 +232,7 @@ groups:
         annotations:
           summary: "Memory usage critical on {{ \$labels.instance }}"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${mem_crit}% for ${mem_dur}"
 
       - alert: HighDiskUsageWarning
         expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|nsfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|nsfs|overlay"}) * 100 > ${disk_warn}
@@ -237,6 +242,7 @@ groups:
         annotations:
           summary: "Disk usage high on {{ \$labels.instance }} ({{ \$labels.mountpoint }})"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${disk_warn}% for ${disk_dur}"
 
       - alert: HighDiskUsageCritical
         expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|nsfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|nsfs|overlay"}) * 100 > ${disk_crit}
@@ -246,6 +252,7 @@ groups:
         annotations:
           summary: "Disk usage critical on {{ \$labels.instance }} ({{ \$labels.mountpoint }})"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${disk_crit}% for ${disk_dur}"
 
       - alert: HighDiskIO
         expr: avg by (instance) (irate(node_disk_io_time_seconds_total[5m])) * 100 > ${diskio_warn}
@@ -255,6 +262,7 @@ groups:
         annotations:
           summary: "Disk I/O wait high on {{ \$labels.instance }}"
           value: "{{ \$value | printf \\"%.1f\\" }}%"
+          threshold: "> ${diskio_warn}% for ${diskio_dur}"
 
   # === Container alerts (local cAdvisor only) ===
   - name: container_alerts
@@ -267,6 +275,7 @@ groups:
         annotations:
           summary: "Container {{ \$labels.container_label_com_docker_compose_service }} restarting repeatedly"
           value: "{{ \$value }} restarts in ${container_dur}"
+          threshold: "> ${container_count} restarts in ${container_dur}"
 EOF
 
     print_success "Generated $ALERTS_FILE"

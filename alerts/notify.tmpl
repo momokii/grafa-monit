@@ -11,8 +11,8 @@
 {{- if .Labels.app }}• App: `{{ .Labels.app }}`{{ end }}
 {{- if .Labels.environment }}• Env: `{{ .Labels.environment }}`{{ end }}
 • {{ .Annotations.summary }}
-• Value: `{{ .Annotations.value }}`
-• Since: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+• Value: `{{ .Annotations.value }}`{{ if .Annotations.threshold }} (threshold: {{ .Annotations.threshold }}){{ end }}
+• Since: {{ .StartsAt.Format "2006-01-02 15:04:05" }} UTC
 {{ end }}
 {{ end }}
 
@@ -28,8 +28,8 @@
 {{- if .Labels.app }} • App: `{{ .Labels.app }}`{{ end }}
 {{- if .Labels.environment }} • Env: `{{ .Labels.environment }}`{{ end }}
 • {{ .Annotations.summary }}
-• Value: `{{ .Annotations.value }}`
-• Since: {{ .StartsAt.Format "2006-01-02 15:04" }}
+• Value: `{{ .Annotations.value }}`{{ if .Annotations.threshold }} (threshold: {{ .Annotations.threshold }}){{ end }}
+• Since: {{ .StartsAt.Format "2006-01-02 15:04" }} UTC
 
 {{ end }}
 {{ end }}
