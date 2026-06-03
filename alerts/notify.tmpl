@@ -10,6 +10,7 @@
 • Host: `{{ .Labels.instance }}{{ if .Labels.vm_name }} ({{ .Labels.vm_name }}){{ end }}`
 {{- if .Labels.app }}• App: `{{ .Labels.app }}`{{ end }}
 {{- if .Labels.environment }}• Env: `{{ .Labels.environment }}`{{ end }}
+{{- if .Labels.job }}• Job: `{{ .Labels.job }}`{{ end }}
 • {{ .Annotations.summary }}
 • Value: `{{ .Annotations.value }}`{{ if .Annotations.threshold }} (threshold: {{ .Annotations.threshold }}){{ end }}
 • Since: {{ .StartsAt.Format "2006-01-02 15:04:05" }} UTC
@@ -27,6 +28,7 @@
 • Host: `{{ .Labels.instance }}`
 {{- if .Labels.app }} • App: `{{ .Labels.app }}`{{ end }}
 {{- if .Labels.environment }} • Env: `{{ .Labels.environment }}`{{ end }}
+{{- if .Labels.job }} • Job: `{{ .Labels.job }}`{{ end }}
 • {{ .Annotations.summary }}
 • Value: `{{ .Annotations.value }}`{{ if .Annotations.threshold }} (threshold: {{ .Annotations.threshold }}){{ end }}
 • Since: {{ .StartsAt.Format "2006-01-02 15:04" }} UTC
@@ -54,6 +56,9 @@
         {{- end }}
         {{- if .Labels.environment }}
         <tr><td style="font-weight: bold;">Environment</td><td>{{ .Labels.environment }}</td></tr>
+        {{- end }}
+        {{- if .Labels.job }}
+        <tr><td style="font-weight: bold;">Job</td><td>{{ .Labels.job }}</td></tr>
         {{- end }}
         <tr><td style="font-weight: bold;">Summary</td><td>{{ .Annotations.summary }}</td></tr>
         <tr><td style="font-weight: bold;">Value</td><td>{{ .Annotations.value }}</td></tr>
