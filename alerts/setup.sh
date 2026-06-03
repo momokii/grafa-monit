@@ -163,6 +163,7 @@ generate_alerts() {
     local diskio_warn diskio_dur
     local host_down_dur
     local container_count container_dur
+    local node_exporter_jobs
 
     cpu_warn=$(get_config "cpu_warning" "80")
     cpu_crit=$(get_config "cpu_critical" "95")
@@ -178,6 +179,7 @@ generate_alerts() {
     host_down_dur=$(get_config "host_down_duration" "2m")
     container_count=$(get_config "container_restart_count" "5")
     container_dur=$(get_config "container_restart_duration" "10m")
+    node_exporter_jobs=$(get_config "node_exporter_jobs" "node-exporter|remote-node-exporters")
 
     cat > "$ALERTS_FILE" << EOF
 groups:
@@ -185,7 +187,7 @@ groups:
   - name: host_alerts
     rules:
       - alert: HostDown
-        expr: up{job=~"node-exporter|remote-node-exporters"} == 0
+        expr: up{job=~"${node_exporter_jobs}"} == 0
         for: ${host_down_dur}
         labels:
           severity: critical
@@ -544,6 +546,11 @@ host_down_duration: ${HOST_DOWN_DURATION:-2m}
 container_restart_count: ${CONTAINER_RESTART_COUNT:-5}
 container_restart_duration: ${CONTAINER_RESTART_DURATION:-10m}
 
+# === Alert Scope ===
+# Prometheus job pattern for host-down alert (regex, pipe-separated)
+# Add custom jobs here if you use --job flag in targets/add-host.sh
+node_exporter_jobs: "${NODE_EXPORTER_JOBS:-node-exporter|remote-node-exporters}"
+
 # === Routing ===
 default_channels: [${DEFAULT_CHANNELS:-}]
 critical_channels: [${CRITICAL_CHANNELS:-}]
@@ -677,6 +684,10 @@ cmd_init() {
 
     CONTAINER_RESTART_COUNT=$(prompt "  Container restart threshold (count)" "5")
     CONTAINER_RESTART_DURATION=$(prompt "  Container restart window" "10m")
+    echo ""
+
+    NODE_EXPORTER_JOBS=$(prompt "  Prometheus job pattern for host alerts" "node-exporter|remote-node-exporters")
+    print_info "  Add custom jobs here if you use --job in targets/add-host.sh"
     echo ""
 
     # --- Step 3: Routing ---
@@ -918,6 +929,10 @@ cmd_status() {
         echo "  Disk IO:  warning $(get_config disk_io_warning "?")% / duration $(get_config disk_io_duration "?")"
         echo "  Host down after: $(get_config host_down_duration "?")"
         echo "  Container restarts: $(get_config container_restart_count "?") in $(get_config container_restart_duration "?")"
+
+        echo ""
+        echo "Alert Scope:"
+        echo "  Job pattern: $(get_config node_exporter_jobs 'node-exporter|remote-node-exporters')"
 
         echo ""
         echo "Routing:"

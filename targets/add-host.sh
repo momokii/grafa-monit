@@ -25,7 +25,7 @@ TARGETS_DIR="prometheus/targets"
 # --- Parse arguments ---
 if [[ $# -eq 0 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
     cat << 'HELP'
-Usage: ./targets/add-host.sh <IP> <VM_NAME> <APP> <ENVIRONMENT>
+Usage: ./targets/add-host.sh <IP> <VM_NAME> <APP> <ENVIRONMENT> [--job <JOB_NAME>]
 
 Add a remote host to centralized monitoring. One JSON file per app group.
 Prometheus auto-discovers new targets every 30s — no restart needed.
@@ -36,11 +36,16 @@ Arguments:
   APP          Application group name (e.g., my-app-A)
   ENVIRONMENT  Deployment environment (e.g., production, staging)
 
+Options:
+  --job <JOB>  Custom Prometheus job name (default: remote-node-exporters)
+               Use this to organize targets into separate job groups for
+               filtering in Grafana dashboards and alert rules.
+
 Examples:
   ./targets/add-host.sh 192.168.1.10 fe-app-a  my-app-A production
-  ./targets/add-host.sh 192.168.1.11 be-app-a  my-app-A production
+  ./targets/add-host.sh 192.168.1.11 be-app-a  my-app-A production --job prod-servers
   ./targets/add-host.sh 192.168.1.20 fe-app-b  my-app-B staging
-  ./targets/add-host.sh 10.0.0.5    db-main   infra    production
+  ./targets/add-host.sh 10.0.0.5    db-main   infra    production --job db-nodes
 
 Target file format (prometheus/targets/<app>.json):
   Each file contains one JSON array with all hosts in that app group.
@@ -58,6 +63,26 @@ HOST_IP="${1:-}"
 VM_NAME="${2:-}"
 APP="${3:-}"
 ENVIRONMENT="${4:-production}"
+CUSTOM_JOB=""
+
+# Parse optional flags
+shift 4 2>/dev/null || shift $# 2>/dev/null || true
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --job)
+            CUSTOM_JOB="${2:-}"
+            if [ -z "$CUSTOM_JOB" ]; then
+                print_error "--job requires a value (e.g., --job prod-servers)"
+                exit 1
+            fi
+            shift 2
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # --- Validate required arguments ---
 if [ -z "$HOST_IP" ] || [ -z "$VM_NAME" ] || [ -z "$APP" ]; then
@@ -107,7 +132,21 @@ if [ -f "$TARGET_FILE" ]; then
 fi
 
 # --- Build new entry ---
-NEW_ENTRY=$(cat << ENTRY
+if [ -n "$CUSTOM_JOB" ]; then
+    NEW_ENTRY=$(cat << ENTRY
+  {
+    "targets": ["${HOST_IP}:9100"],
+    "labels": {
+      "vm_name": "${VM_NAME}",
+      "app": "${APP}",
+      "environment": "${ENVIRONMENT}",
+      "custom_job": "${CUSTOM_JOB}"
+    }
+  }
+ENTRY
+)
+else
+    NEW_ENTRY=$(cat << ENTRY
   {
     "targets": ["${HOST_IP}:9100"],
     "labels": {
@@ -118,6 +157,7 @@ NEW_ENTRY=$(cat << ENTRY
   }
 ENTRY
 )
+fi
 
 # --- Write file ---
 if [ -f "$TARGET_FILE" ] && [ -s "$TARGET_FILE" ]; then
@@ -150,7 +190,15 @@ print_info "  VM Name:     ${VM_NAME}"
 print_info "  IP:          ${HOST_IP}:9100"
 print_info "  App Group:   ${APP} (${APP_SAFE})"
 print_info "  Environment: ${ENVIRONMENT}"
+if [ -n "$CUSTOM_JOB" ]; then
+print_info "  Custom Job:  ${CUSTOM_JOB}"
+fi
 print_info "  Target File: ${TARGET_FILE}"
 echo ""
 print_info "Prometheus will auto-discover this host within 30 seconds."
+if [ -n "$CUSTOM_JOB" ]; then
+print_info "To include this job in alert rules, update alerts/config.yml:"
+print_info "  node_exporter_jobs: \"node-exporter|remote-node-exporters|${CUSTOM_JOB}\""
+print_info "Then run: ./alerts/setup.sh generate && docker compose restart prometheus"
+fi
 print_info "Manage targets: ./targets/list-targets.sh"
