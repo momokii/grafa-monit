@@ -196,9 +196,32 @@ fi
 print_info "  Target File: ${TARGET_FILE}"
 echo ""
 print_info "Prometheus will auto-discover this host within 30 seconds."
+
+# --- Auto-update alert config for custom jobs ---
 if [ -n "$CUSTOM_JOB" ]; then
-print_info "To include this job in alert rules, update alerts/config.yml:"
-print_info "  node_exporter_jobs: \"node-exporter|remote-node-exporters|${CUSTOM_JOB}\""
-print_info "Then run: ./alerts/setup.sh generate && docker compose restart prometheus"
+    ALERT_CONFIG="alerts/config.yml"
+    if [ -f "$ALERT_CONFIG" ]; then
+        CURRENT_JOBS=$(grep "^node_exporter_jobs:" "$ALERT_CONFIG" 2>/dev/null | sed 's/^node_exporter_jobs: *//' | tr -d '"' | tr -d "'" || true)
+
+        # Field doesn't exist yet — add it before the routing section
+        if [ -z "$CURRENT_JOBS" ]; then
+            DEFAULT_PATTERN="node-exporter|remote-node-exporters|${CUSTOM_JOB}"
+            sed -i "/^# === Routing ===/i\\node_exporter_jobs: \"${DEFAULT_PATTERN}\"" "$ALERT_CONFIG"
+            print_info "Created alert job pattern in alerts/config.yml: ${DEFAULT_PATTERN}"
+        # Field exists but doesn't include this job — append it
+        elif ! echo "$CURRENT_JOBS" | grep -q "$CUSTOM_JOB"; then
+            UPDATED_JOBS="${CURRENT_JOBS}|${CUSTOM_JOB}"
+            sed -i "s#^node_exporter_jobs:.*#node_exporter_jobs: \"${UPDATED_JOBS}\"#" "$ALERT_CONFIG"
+            print_info "Added '${CUSTOM_JOB}' to alert job pattern in alerts/config.yml"
+        fi
+
+        # Regenerate alerts if setup.sh is available
+        if [ -x "alerts/setup.sh" ]; then
+            if alerts/setup.sh generate >/dev/null 2>&1; then
+                print_info "Alert rules regenerated — restart prometheus to apply"
+            fi
+        fi
+    fi
 fi
+
 print_info "Manage targets: ./targets/list-targets.sh"
