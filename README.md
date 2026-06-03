@@ -209,11 +209,7 @@ To monitor additional VMs from this central server:
    ./targets/add-host.sh 10.0.0.5    db-main   infra    production --job db-nodes
    ```
 
-   > **Custom jobs**: By default all hosts get job `remote-node-exporters`. Use `--job` to assign a custom Prometheus job name for better filtering in Grafana. If you use custom jobs, update `alerts/config.yml` to include the job in the alert pattern:
-   > ```yaml
-   > node_exporter_jobs: "node-exporter|remote-node-exporters|prod-servers"
-   > ```
-   > Then run `./alerts/setup.sh generate` to apply.
+   > **Custom jobs**: By default all hosts get job `remote-node-exporters`. Use `--job` to assign a custom Prometheus job name for better filtering in Grafana dashboards. Custom jobs are fully automatic — the script updates the alert pattern in `alerts/config.yml` and regenerates alert rules so HostDown monitoring covers the new job. No manual steps needed.
 
 3. Prometheus auto-discovers new targets every 30 seconds — no restart needed.
 
@@ -1285,7 +1281,7 @@ docker compose up -d --force-recreate alertmanager
 | HighDiskIO | Warning | Disk I/O wait high | > 10% for 5m |
 | ContainerRestarted | Warning | Container crash loop | > 5 restarts in 10m |
 
-All host-level rules apply to both local node-exporter and remote VMs automatically. Container rules only fire locally (cAdvisor). If you use custom job names (via `--job` flag), update `node_exporter_jobs` in `alerts/config.yml` to include them in the HostDown alert.
+All host-level rules apply to both local node-exporter and remote VMs automatically. Container rules only fire locally (cAdvisor). Custom job names (via `--job` flag) are automatically added to the HostDown alert pattern — no manual config needed.
 
 ### How It Works
 
