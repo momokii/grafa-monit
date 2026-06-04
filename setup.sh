@@ -85,6 +85,41 @@ create_directories() {
         sudo chown "$(whoami)" prometheus/targets 2>/dev/null || true
     fi
 
+    # Ensure alerts.yml and alertmanager.yml exist as files (not directories).
+    # These are gitignored, so on a fresh clone Docker bind-mounts would create
+    # them as directories, causing Prometheus/AlertManager to crash.
+    ensure_config_file() {
+        local file="$1"
+        local content="$2"
+        if [ -d "$file" ]; then
+            print_warning "$file is a directory (likely created by Docker) — removing it"
+            rm -rf "$file"
+        fi
+        if [ ! -f "$file" ]; then
+            echo "$content" > "$file"
+            print_info "Created stub: $file"
+        fi
+    }
+
+    ensure_config_file "alerts.yml" "groups: []"
+    ensure_config_file "alertmanager.yml" "$(cat << 'AMSTUB'
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'null'
+
+receivers:
+  - name: 'null'
+AMSTUB
+    )"
+
+    unset -f ensure_config_file
+
     # Additional directories for completeness
     local additional_directories=(
         "backups"
@@ -478,6 +513,18 @@ show_access_info() {
     print_info "  PostgreSQL Exporter: http://localhost:9187/metrics (if enabled)"
     print_info "  Nginx Exporter:      http://localhost:9113/metrics (if enabled)"
     echo
+
+    # Alert setup reminder
+    if [ ! -f "alerts/config.yml" ]; then
+        print_warning "Alert rules are using empty defaults — no alerts will fire yet."
+        echo
+        print_info "To configure real alerts with notification channels:"
+        print_info "  ./alerts/setup.sh init"
+        print_info "  docker compose restart prometheus"
+        print_info "  docker compose up -d --force-recreate alertmanager"
+        echo
+    fi
+
     print_success "Setup completed successfully!"
 }
 

@@ -35,8 +35,8 @@ The monitoring stack is split into core services (always running) and optional l
 grafana-host-monitoring/
 ├── compose.yaml                 # Unified Docker Compose configuration
 ├── prometheus.yaml              # Prometheus configuration
-├── alerts.yml                   # Prometheus alert rules
-├── alertmanager.yml             # AlertManager configuration
+├── alerts.yml                   # Prometheus alert rules (auto-created stub on first setup)
+├── alertmanager.yml             # AlertManager configuration (auto-created stub on first setup)
 ├── .example.env                 # Environment variables template
 ├── .gitignore                   # Git ignore rules
 ├── setup.sh                     # Setup script (core or --with-logs)
@@ -1222,6 +1222,8 @@ This provides necessary system access while maintaining security through:
 
 ### Quick Start
 
+On first `./setup.sh`, empty stub files for `alerts.yml` and `alertmanager.yml` are created automatically — no alerts will fire until you configure them. To set up real alerts:
+
 Configure alerts and notifications with one command — no Grafana UI needed:
 
 ```bash
@@ -1337,13 +1339,41 @@ The script will prompt for alert name, PromQL expression, severity, and duration
 ### Alert Flow
 
 - **Thresholds** are stored in `alerts/config.yml` (gitignored — may contain credentials)
-- **Prometheus rules** are generated to `alerts.yml` (tracked in git — no secrets)
+- **Prometheus rules** are generated to `alerts.yml` (gitignored — may contain custom thresholds)
 - **AlertManager config** is generated to `alertmanager.yml` (gitignored — contains webhook URLs/tokens)
 - **Notification templates** are in `alerts/notify.tmpl` (tracked — Go templates for clean messages)
 
 ## Troubleshooting
 
 ### Common Issues and Solutions
+
+#### 0. Grafana Fails to Start on First Setup (Branding Mount Error)
+
+If you see `not a directory: Are you trying to mount a directory onto a file` for branding files:
+```bash
+# Branding mounts are disabled by default. If you previously ran branding/setup.sh,
+# make sure the branding files exist before starting:
+ls branding/grafana_icon.svg branding/fav32.png
+
+# If files are missing, disable branding to start cleanly:
+./branding/setup.sh disable
+docker compose up -d --force-recreate grafana
+
+# Or set up branding properly first:
+./branding/setup.sh init --logo my-logo.svg --favicon my-favicon.png
+```
+
+#### 0. Prometheus or AlertManager Crash (alerts.yml is a directory)
+
+On a fresh clone, Docker may create `alerts.yml` or `alertmanager.yml` as directories instead of files:
+```bash
+# Check if they're directories:
+ls -la alerts.yml alertmanager.yml
+
+# If so, remove them and re-run setup:
+rm -rf alerts.yml alertmanager.yml
+./setup.sh --skip-pull
+```
 
 #### 1. Permission Denied When Backing Up Data
 ```bash
@@ -1624,10 +1654,12 @@ Created and maintained with ❤️ for robust infrastructure monitoring
 
 ---
 
-*Last updated: May 21, 2026*
+*Last updated: June 4, 2026*
 *Version: 4.2 - Centralized Monitoring with Alerting*
 
 ### Recent Updates (v4.2)
+- **First-Setup Fixes**: Branding mounts disabled by default (prevents Grafana crash); auto-created stubs for `alerts.yml`/`alertmanager.yml` (prevents Prometheus/AlertManager crash on fresh clone)
+- **Custom Job Names**: `--job` flag in `targets/add-host.sh` for organizing hosts into separate Prometheus jobs; auto-updates alert rules
 - **Script-Based Alerting**: `alerts/setup.sh init` — interactive wizard for alert rules and notification channels
 - **9 Default Alert Rules**: Host-down, CPU, memory, disk, disk IO, container restarts (covers local + remote VMs)
 - **4 Notification Channels**: Discord, Telegram, Slack, Email — configure via guided setup, no YAML editing
