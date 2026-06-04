@@ -197,7 +197,7 @@ groups:
           threshold: "unreachable for ${host_down_dur}"
 
       - alert: HighCPUWarning
-        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_warn}
+        expr: 100 - (avg by (instance, job) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_warn}
         for: ${cpu_dur}
         labels:
           severity: warning
@@ -207,7 +207,7 @@ groups:
           threshold: "> ${cpu_warn}% for ${cpu_dur}"
 
       - alert: HighCPUCritical
-        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_crit}
+        expr: 100 - (avg by (instance, job) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > ${cpu_crit}
         for: ${cpu_dur}
         labels:
           severity: critical
@@ -257,7 +257,7 @@ groups:
           threshold: "> ${disk_crit}% for ${disk_dur}"
 
       - alert: HighDiskIO
-        expr: avg by (instance) (irate(node_disk_io_time_seconds_total[5m])) * 100 > ${diskio_warn}
+        expr: avg by (instance, job) (irate(node_disk_io_time_seconds_total[5m])) * 100 > ${diskio_warn}
         for: ${diskio_dur}
         labels:
           severity: warning
